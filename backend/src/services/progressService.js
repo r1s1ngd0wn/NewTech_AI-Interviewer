@@ -1,0 +1,57 @@
+const store = require("../store");
+const scenarioService = require("./scenarioService");
+const sessionService = require("./sessionService");
+
+function getProgress(userId) {
+  const scored = sessionService
+    .listSessionsForUser(userId)
+    .filter((s) => s.status === "scored")
+    .map((s) => ({ session: s, feedback: store.feedbacks.get(s.id) }))
+    .filter((entry) => entry.feedback)
+    .sort((a, b) => new Date(a.session.startedAt) - new Date(b.session.startedAt));
+
+  const history = scored.map(({ session, feedback }) => ({
+    sessionId: session.id,
+    scenarioId: session.scenarioId,
+    scenarioTitle: scenarioService.getScenario(session.scenarioId)?.title,
+    date: session.endedAt,
+    overallScore: feedback.overallScore,
+    criteria: feedback.criteria.map((c) => ({ criterionId: c.criterionId, score: c.averageScore })),
+  }));
+
+  const trend = buildTrend(history);
+  const weakestCriterion = findWeakestCriterion(history);
+
+  return { history, trend, weakestCriterion };
+}
+
+function buildTrend(history) {
+  const criterionIds = history[0]?.criteria.map((c) => c.criterionId) || [];
+  return criterionIds.map((criterionId) => ({
+    criterionId,
+    points: history.map((h) => ({
+      date: h.date,
+      score: h.criteria.find((c) => c.criterionId === criterionId)?.score ?? null,
+    })),
+  }));
+}
+
+function findWeakestCriterion(history) {
+  if (!history.length) return null;
+  const totals = {};
+  const counts = {};
+  for (const h of history) {
+    for (const c of h.criteria) {
+      totals[c.criterionId] = (totals[c.criterionId] || 0) + c.score;
+      counts[c.criterionId] = (counts[c.criterionId] || 0) + 1;
+    }
+  }
+  let weakest = null;
+  for (const criterionId of Object.keys(totals)) {
+    const avg = totals[criterionId] / counts[criterionId];
+    if (!weakest || avg < weakest.avg) weakest = { criterionId, avg };
+  }
+  return weakest && { criterionId: weakest.criterionId, averageScore: Math.round(weakest.avg) };
+}
+
+module.exports = { getProgress };
