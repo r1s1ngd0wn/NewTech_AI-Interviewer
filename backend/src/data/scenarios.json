@@ -1,0 +1,122 @@
+[
+  {
+    "id": "scn_swe_junior_behavioral",
+    "title": "Junior Software Engineer - Behavioral",
+    "industry": "Technology",
+    "seniority": "Junior",
+    "questionType": "Behavioral",
+    "persona": "Friendly startup engineering manager. Casual but professional tone.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Tell me a little about yourself and why you're interested in this role.",
+        "keywords": ["experience", "background", "interested", "role", "skills", "project"]
+      },
+      {
+        "id": "q2",
+        "text": "Describe a time you disagreed with a teammate. How did you handle it?",
+        "keywords": ["disagree", "team", "communication", "compromise", "resolved", "listen"]
+      },
+      {
+        "id": "q3",
+        "text": "Tell me about a project you're proud of. What was your role and the outcome?",
+        "keywords": ["project", "role", "result", "outcome", "learned", "impact"]
+      },
+      {
+        "id": "q4",
+        "text": "How do you handle tight deadlines or pressure?",
+        "keywords": ["deadline", "pressure", "priorit", "plan", "manage", "stress"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_midlevel_technical",
+    "title": "Mid-Level Software Engineer - Technical",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "Technical",
+    "persona": "Direct, precise senior engineer running a technical screen.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Walk me through how you would design a simple URL-shortening service.",
+        "keywords": ["database", "scale", "hash", "cache", "api", "storage", "design"]
+      },
+      {
+        "id": "q2",
+        "text": "What is the difference between SQL and NoSQL databases, and when would you choose each?",
+        "keywords": ["sql", "nosql", "schema", "scale", "consistency", "relational"]
+      },
+      {
+        "id": "q3",
+        "text": "How do you approach debugging a production issue you can't reproduce locally?",
+        "keywords": ["logs", "monitoring", "reproduce", "trace", "metrics", "debug"]
+      },
+      {
+        "id": "q4",
+        "text": "Explain a time you improved the performance of a system. What was the bottleneck?",
+        "keywords": ["performance", "bottleneck", "optimiz", "latency", "profil", "measure"]
+      }
+    ]
+  },
+  {
+    "id": "scn_marketing_junior_situational",
+    "title": "Junior Marketing Associate - Situational",
+    "industry": "Marketing",
+    "seniority": "Junior",
+    "questionType": "Situational",
+    "persona": "Warm, encouraging brand marketing lead.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Imagine a campaign you launched is underperforming a week before the deadline. What do you do?",
+        "keywords": ["campaign", "data", "analyze", "adjust", "stakeholder", "plan"]
+      },
+      {
+        "id": "q2",
+        "text": "How would you prioritize between three marketing requests due the same day?",
+        "keywords": ["priorit", "deadline", "stakeholder", "impact", "communicate"]
+      },
+      {
+        "id": "q3",
+        "text": "Tell me about a time you used data to change your approach to a project.",
+        "keywords": ["data", "metrics", "analysis", "changed", "decision", "result"]
+      },
+      {
+        "id": "q4",
+        "text": "How do you stay current with marketing trends and channels?",
+        "keywords": ["trends", "research", "learn", "channel", "social", "audience"]
+      }
+    ]
+  },
+  {
+    "id": "scn_finance_senior_behavioral",
+    "title": "Senior Financial Analyst - Behavioral",
+    "industry": "Finance",
+    "seniority": "Senior",
+    "questionType": "Behavioral",
+    "persona": "Formal, composed finance director in a corporate setting.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Describe a time your financial analysis changed a business decision.",
+        "keywords": ["analysis", "decision", "forecast", "impact", "stakeholder", "recommend"]
+      },
+      {
+        "id": "q2",
+        "text": "Tell me about a time you had to explain a complex financial result to a non-finance audience.",
+        "keywords": ["explain", "communicate", "simplify", "audience", "presentation"]
+      },
+      {
+        "id": "q3",
+        "text": "How do you ensure accuracy under a tight month-end close deadline?",
+        "keywords": ["accuracy", "deadline", "process", "checklist", "review", "close"]
+      },
+      {
+        "id": "q4",
+        "text": "Describe a situation where you identified a financial risk before it became a problem.",
+        "keywords": ["risk", "identif", "mitigat", "forecast", "proactive"]
+      }
+    ]
+  }
+]

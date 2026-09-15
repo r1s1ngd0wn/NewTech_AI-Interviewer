@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "criteria": [
+    {
+      "id": "fluency",
+      "name": "Fluency & Delivery",
+      "description": "Smoothness of the answer: length, continuity, and minimal filler words.",
+      "bands": [
+        { "band": 1, "label": "Limited", "min": 0 },
+        { "band": 2, "label": "Developing", "min": 35 },
+        { "band": 3, "label": "Competent", "min": 55 },
+        { "band": 4, "label": "Strong", "min": 75 },
+        { "band": 5, "label": "Excellent", "min": 90 }
+      ]
+    },
+    {
+      "id": "relevance",
+      "name": "Relevance",
+      "description": "How directly the answer addresses what the question asked.",
+      "bands": [
+        { "band": 1, "label": "Off-topic", "min": 0 },
+        { "band": 2, "label": "Partially relevant", "min": 35 },
+        { "band": 3, "label": "Mostly relevant", "min": 55 },
+        { "band": 4, "label": "Relevant", "min": 75 },
+        { "band": 5, "label": "Highly relevant", "min": 90 }
+      ]
+    },
+    {
+      "id": "vocabulary_grammar",
+      "name": "Vocabulary & Grammar",
+      "description": "Range of vocabulary and basic grammatical correctness.",
+      "bands": [
+        { "band": 1, "label": "Very limited", "min": 0 },
+        { "band": 2, "label": "Limited", "min": 35 },
+        { "band": 3, "label": "Adequate", "min": 55 },
+        { "band": 4, "label": "Good", "min": 75 },
+        { "band": 5, "label": "Excellent", "min": 90 }
+      ]
+    },
+    {
+      "id": "structure",
+      "name": "Structure",
+      "description": "Whether the answer follows a clear shape (situation/action/result-style sequencing).",
+      "bands": [
+        { "band": 1, "label": "Unstructured", "min": 0 },
+        { "band": 2, "label": "Loosely structured", "min": 35 },
+        { "band": 3, "label": "Mostly structured", "min": 55 },
+        { "band": 4, "label": "Well structured", "min": 75 },
+        { "band": 5, "label": "Clearly structured", "min": 90 }
+      ]
+    }
+  ]
+}
