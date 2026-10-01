@@ -22,6 +22,11 @@ router.post("/login", (req, res, next) => {
   }
 });
 
+router.post("/logout", requireAuth, (req, res) => {
+  authService.revokeToken(req.token);
+  res.status(204).end();
+});
+
 router.get("/me", requireAuth, (req, res) => {
   res.json({ user: authService.toPublicUser(req.user) });
 });

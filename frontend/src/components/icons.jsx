@@ -76,6 +76,15 @@ export function CloseIcon(props) {
   );
 }
 
+export function SendIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <line x1="21" y1="3" x2="10" y2="14" />
+      <polygon points="21 3 14 21 10 14 3 10 21 3" />
+    </svg>
+  );
+}
+
 export function TrashIcon(props) {
   return (
     <svg {...base} {...props}>

@@ -118,5 +118,485 @@
         "keywords": ["risk", "identif", "mitigat", "forecast", "proactive"]
       }
     ]
+  },
+  {
+    "id": "scn_swe_junior_fundamentals",
+    "title": "Junior Software Engineer - Programming Fundamentals",
+    "industry": "Technology",
+    "seniority": "Junior",
+    "questionType": "Technical",
+    "persona": "Patient, friendly senior developer running a junior technical screen.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Describe the principles of Object-Oriented Programming (OOP).",
+        "referenceAnswer": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code.",
+        "keywords": ["encapsul", "inherit", "polymorph", "abstract", "class", "object", "reus"]
+      },
+      {
+        "id": "q2",
+        "text": "What is the difference between an array and a linked list?",
+        "referenceAnswer": "An array has fixed size and stores elements in contiguous memory; a linked list consists of nodes with data and references, allowing dynamic size.",
+        "keywords": ["array", "linked", "node", "contiguous", "memory", "fixed", "dynamic"]
+      },
+      {
+        "id": "q3",
+        "text": "Explain the concept of recursion.",
+        "referenceAnswer": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion.",
+        "keywords": ["recurs", "calls itself", "base case", "subproblem", "terminat", "stack"]
+      },
+      {
+        "id": "q4",
+        "text": "What is a merge conflict, and how do you resolve it in Git?",
+        "referenceAnswer": "Merge conflicts occur when changes in different branches clash. Resolve by manually editing files and committing the result.",
+        "keywords": ["conflict", "branch", "merge", "manual", "resolv", "commit", "marker"]
+      },
+      {
+        "id": "q5",
+        "text": "What is unit testing, and why is it important?",
+        "referenceAnswer": "Unit testing evaluates individual code components, ensuring correctness and facilitating early defect detection.",
+        "keywords": ["unit test", "individual", "function", "bug", "defect", "early", "automat"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_junior_web",
+    "title": "Junior Web Developer - Web Basics",
+    "industry": "Technology",
+    "seniority": "Junior",
+    "questionType": "Technical",
+    "persona": "Encouraging front-end lead checking core web knowledge.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Describe the differences between GET and POST requests.",
+        "referenceAnswer": "GET requests retrieve data and include parameters in the URL; POST requests send data to the server, encapsulating data in the request body.",
+        "keywords": ["post", "url", "body", "retriev", "parameter", "idempot", "submit"]
+      },
+      {
+        "id": "q2",
+        "text": "Explain the difference between HTTP and HTTPS.",
+        "referenceAnswer": "HTTP is an unsecured data transmission protocol; HTTPS is secure, encrypting data in transit using SSL/TLS.",
+        "keywords": ["encrypt", "secur", "tls", "ssl", "certificate", "transit", "intercept"]
+      },
+      {
+        "id": "q3",
+        "text": "What is a cookie, and how does it work?",
+        "referenceAnswer": "Cookies are data stored on the user's computer by the web server, sent with HTTP requests for session management, tracking, and storing preferences.",
+        "keywords": ["cookie", "browser", "stored", "session", "track", "preferenc", "header"]
+      },
+      {
+        "id": "q4",
+        "text": "Explain the concept of responsive web design.",
+        "referenceAnswer": "Responsive design ensures web content functions across different devices and screen sizes, using CSS media queries and flexible layouts.",
+        "keywords": ["device", "screen", "media quer", "layout", "flexib", "css", "mobile"]
+      },
+      {
+        "id": "q5",
+        "text": "What is a RESTful API?",
+        "referenceAnswer": "RESTful API is a web service implementation using HTTP methods to perform CRUD operations on resources, adhering to stateless, client-server architecture.",
+        "keywords": ["http", "resource", "stateless", "crud", "endpoint", "json", "method"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_midlevel_backend",
+    "title": "Mid-Level Backend Engineer - Technical",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "Technical",
+    "persona": "Direct, practical backend team lead.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Describe how you would implement a RESTful API in a back-end application.",
+        "referenceAnswer": "A RESTful API is implemented by setting up HTTP routes (GET, POST, PUT, DELETE) and handling requests and responses in a stateless manner, often using JSON.",
+        "keywords": ["route", "endpoint", "json", "stateless", "status code", "resource", "validat"]
+      },
+      {
+        "id": "q2",
+        "text": "What is a database index, and why is it important?",
+        "referenceAnswer": "A database index speeds up data retrieval, similar to a book's index, improving query performance.",
+        "keywords": ["index", "speed", "query", "lookup", "tree", "scan", "write"]
+      },
+      {
+        "id": "q3",
+        "text": "Describe the ACID properties in database transactions.",
+        "referenceAnswer": "ACID: Atomicity (indivisible transactions), Consistency (consistent state transitions), Isolation (independent transactions), Durability (persisted changes).",
+        "keywords": ["atomic", "consisten", "isolat", "durab", "transaction", "rollback", "commit"]
+      },
+      {
+        "id": "q4",
+        "text": "What is a 'race condition' in software development?",
+        "referenceAnswer": "A race condition occurs when the system's behavior depends on the sequence or timing of other uncontrollable events.",
+        "keywords": ["concurren", "thread", "timing", "sequence", "shared", "mutex", "synchroni"]
+      },
+      {
+        "id": "q5",
+        "text": "How do NoSQL databases handle data scaling compared to traditional SQL databases?",
+        "referenceAnswer": "NoSQL databases are generally more scalable and provide superior performance for large-scale applications due to their flexibility in handling unstructured data.",
+        "keywords": ["horizontal", "shard", "partition", "vertical", "unstructured", "flexib", "scal"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_midlevel_frontend",
+    "title": "Mid-Level Frontend Engineer - Technical",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "Technical",
+    "persona": "Detail-oriented front-end architect.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Explain the concept of 'closure' in JavaScript.",
+        "referenceAnswer": "A closure is a function that remembers its outer variables and can access them.",
+        "keywords": ["outer", "scope", "variable", "remember", "lexical", "private", "function"]
+      },
+      {
+        "id": "q2",
+        "text": "Can you explain the concept of 'state' in React?",
+        "referenceAnswer": "State in React is an object that holds some information that may change over the lifecycle of the component.",
+        "keywords": ["component", "render", "usestate", "props", "update", "chang", "lifecycle"]
+      },
+      {
+        "id": "q3",
+        "text": "Explain the use of hooks in React.",
+        "referenceAnswer": "Hooks are functions that let you 'hook into' React state and lifecycle features from function components.",
+        "keywords": ["usestate", "useeffect", "function", "lifecycle", "class", "side effect", "state"]
+      },
+      {
+        "id": "q4",
+        "text": "What are the benefits of server-side rendering vs client-side rendering?",
+        "referenceAnswer": "Server-side rendering improves initial page load time and SEO, while client-side rendering is good for dynamic websites with less initial loading content.",
+        "keywords": ["seo", "initial", "load", "hydrat", "browser", "interactiv", "dynamic"]
+      },
+      {
+        "id": "q5",
+        "text": "How would you optimize a website's load time?",
+        "referenceAnswer": "Optimizations can include minimizing HTTP requests, using CDNs, compressing files, caching, etc.",
+        "keywords": ["minif", "compress", "cach", "cdn", "lazy", "image", "bundle"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_midlevel_devops",
+    "title": "Mid-Level DevOps Engineer - Technical",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "Technical",
+    "persona": "Pragmatic platform engineering manager.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "What is Docker, and how does it work?",
+        "referenceAnswer": "Docker is a containerization platform packaging applications with dependencies, ensuring consistent environments across systems.",
+        "keywords": ["container", "image", "dockerfile", "dependenc", "isolat", "portab", "consistent"]
+      },
+      {
+        "id": "q2",
+        "text": "What is continuous integration (CI) and continuous delivery (CD)?",
+        "referenceAnswer": "CI involves frequent code integration and testing; CD extends CI by deploying changes to production automatically after testing.",
+        "keywords": ["integrat", "automat", "pipeline", "build", "deploy", "frequent", "production"]
+      },
+      {
+        "id": "q3",
+        "text": "What is Blue-Green deployment, and when would you use it?",
+        "referenceAnswer": "Blue-Green deployment alternates between two production environments for easy rollbacks and minimal downtime during updates.",
+        "keywords": ["environment", "rollback", "downtime", "traffic", "switch", "identical", "production"]
+      },
+      {
+        "id": "q4",
+        "text": "What is infrastructure as code (IaC)?",
+        "referenceAnswer": "IaC manages infrastructure using code, ensuring consistency, automation, and version control in deployments.",
+        "keywords": ["terraform", "version control", "consisten", "automat", "repeatab", "declarative", "provision"]
+      },
+      {
+        "id": "q5",
+        "text": "How do you monitor the performance of a web application?",
+        "referenceAnswer": "Monitor using tools to collect and analyze data on response times, resource utilization, error rates, and user experience.",
+        "keywords": ["metric", "logs", "alert", "dashboard", "latency", "error", "resource"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_midlevel_security",
+    "title": "Mid-Level Software Engineer - Security",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "Technical",
+    "persona": "Careful, methodical application security engineer.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "What is SQL injection, and how can it be prevented?",
+        "referenceAnswer": "SQL injection exploits vulnerabilities to execute malicious SQL. Prevent with parameterized queries, input validation, and least privilege access.",
+        "keywords": ["parameteriz", "prepared", "sanitiz", "validat", "escap", "malicious", "privilege"]
+      },
+      {
+        "id": "q2",
+        "text": "Explain the concept of Cross-Site Scripting (XSS).",
+        "referenceAnswer": "XSS injects malicious scripts into web apps, executed by users' browsers. Prevent with input validation, output encoding, and CSP.",
+        "keywords": ["javascript", "malicious", "inject", "browser", "encod", "escap", "csp"]
+      },
+      {
+        "id": "q3",
+        "text": "Describe the process of password hashing and salting.",
+        "referenceAnswer": "Hashing transforms passwords into hashes using algorithms; salting adds randomness, enhancing security against attacks.",
+        "keywords": ["hash", "salt", "random", "rainbow", "bcrypt", "plain text", "unique"]
+      },
+      {
+        "id": "q4",
+        "text": "What is OAuth, and how does it work?",
+        "referenceAnswer": "OAuth allows third-party app access to user data without exposing credentials, using access tokens for authorization.",
+        "keywords": ["token", "authoriz", "third", "credential", "scope", "consent", "provider"]
+      },
+      {
+        "id": "q5",
+        "text": "What is a DDoS (Distributed Denial of Service) attack?",
+        "referenceAnswer": "A DDoS attack overwhelms a target with traffic, causing unavailability. Mitigate with DDoS protection, rate limiting, and traffic analysis.",
+        "keywords": ["traffic", "overwhelm", "botnet", "flood", "rate limit", "mitigat", "unavailab"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_midlevel_practices",
+    "title": "Mid-Level Software Engineer - Engineering Practices",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "Technical",
+    "persona": "Thoughtful engineering manager who cares about code quality.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Describe the purpose of code reviews.",
+        "referenceAnswer": "Code reviews identify defects, improve quality, enforce standards, and facilitate knowledge sharing.",
+        "keywords": ["defect", "bug", "quality", "standard", "knowledge", "feedback", "peer"]
+      },
+      {
+        "id": "q2",
+        "text": "Explain the concept of code coverage in testing.",
+        "referenceAnswer": "Code coverage measures the extent of code tested, assessing test thoroughness and identifying untested areas.",
+        "keywords": ["percent", "lines", "branch", "untested", "measure", "metric", "thorough"]
+      },
+      {
+        "id": "q3",
+        "text": "What is code refactoring, and why is it important?",
+        "referenceAnswer": "Refactoring improves code structure and readability without altering functionality, enhancing maintainability and quality.",
+        "keywords": ["structure", "readab", "maintain", "behavio", "functionality", "debt", "duplicat"]
+      },
+      {
+        "id": "q4",
+        "text": "What is Git rebase, and when would you use it?",
+        "referenceAnswer": "Git rebase re-applies commits onto another base for a cleaner history. Use with caution to maintain a linear project history.",
+        "keywords": ["history", "linear", "commit", "merge", "force", "squash", "clean"]
+      },
+      {
+        "id": "q5",
+        "text": "Explain the difference between black-box and white-box testing.",
+        "referenceAnswer": "Black-box tests functionality without internal code knowledge; white-box tests internal code logic and structure.",
+        "keywords": ["internal", "functional", "input", "output", "logic", "structure", "knowledge"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_midlevel_systemdesign",
+    "title": "Mid-Level Software Engineer - System Design Basics",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "System Design",
+    "persona": "Calm, curious staff engineer who likes reasoning about trade-offs.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Discuss the pros and cons of monolithic vs. microservices architecture.",
+        "referenceAnswer": "Monolithic is simple but less scalable; microservices offer scalability and flexibility but are complex to manage.",
+        "keywords": ["scal", "deploy", "complex", "independent", "team", "simpl", "network"]
+      },
+      {
+        "id": "q2",
+        "text": "What is a load balancer, and why is it used in web applications?",
+        "referenceAnswer": "A load balancer distributes incoming traffic across servers, ensuring resource efficiency, fault tolerance, and high availability.",
+        "keywords": ["traffic", "distribut", "availab", "fault", "health", "round robin", "scal"]
+      },
+      {
+        "id": "q3",
+        "text": "Explain the importance of caching in web applications.",
+        "referenceAnswer": "Caching stores frequently accessed data for faster retrieval, reducing backend load, improving performance, and enhancing user experience.",
+        "keywords": ["frequent", "latency", "faster", "load", "expir", "invalidat", "database"]
+      },
+      {
+        "id": "q4",
+        "text": "What is a message broker, and when would you use one?",
+        "referenceAnswer": "A message broker facilitates communication in distributed systems through asynchronous messaging, used in event-driven architectures and high-volume scenarios.",
+        "keywords": ["queue", "asynchron", "decoupl", "kafka", "rabbitmq", "event", "publish"]
+      },
+      {
+        "id": "q5",
+        "text": "What is a CDN (Content Delivery Network)?",
+        "referenceAnswer": "A CDN is a network of servers for delivering content efficiently to users based on geographic proximity, reducing latency and load times.",
+        "keywords": ["nearest", "latency", "geograph", "static", "cach", "closest", "distribut"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_senior_systemdesign",
+    "title": "Senior Software Engineer - System Design",
+    "industry": "Technology",
+    "seniority": "Senior",
+    "questionType": "System Design",
+    "persona": "Experienced principal engineer running a design round.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Design a chat application that can scale to millions of users.",
+        "referenceAnswer": "Consider websocket protocol for real-time communication, efficient message broadcasting, and scalable backend architecture.",
+        "keywords": ["websocket", "queue", "shard", "presence", "delivery", "broadcast", "scal", "load balanc"]
+      },
+      {
+        "id": "q2",
+        "text": "Design a scalable notification system for a social network.",
+        "referenceAnswer": "Focus on system architecture, push vs. pull models, handling peak loads, database optimization, and message queuing.",
+        "keywords": ["push", "queue", "priorit", "retry", "batch", "peak", "device"]
+      },
+      {
+        "id": "q3",
+        "text": "Design an API rate limiter for a web service.",
+        "referenceAnswer": "Use token bucket or leaky bucket algorithms, consider distributed storage for scalability.",
+        "keywords": ["bucket", "window", "redis", "counter", "429", "distribut", "per user"]
+      },
+      {
+        "id": "q4",
+        "text": "Design a distributed key-value store.",
+        "referenceAnswer": "Focus on data partitioning, replication for fault tolerance, consistency models, and handling node failures.",
+        "keywords": ["partition", "replica", "consisten", "hash", "failure", "quorum", "shard"]
+      },
+      {
+        "id": "q5",
+        "text": "Design a global video streaming service like Netflix.",
+        "referenceAnswer": "Focus on CDN usage, adaptive bitrate streaming, content caching strategies, and handling peak traffic loads.",
+        "keywords": ["cdn", "adaptive", "bitrate", "transcod", "chunk", "playback", "buffer"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_senior_distributed",
+    "title": "Senior Software Engineer - Distributed Systems",
+    "industry": "Technology",
+    "seniority": "Senior",
+    "questionType": "Technical",
+    "persona": "Rigorous distributed-systems architect.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Explain the concept of CAP theorem in distributed systems.",
+        "referenceAnswer": "The CAP theorem states that in a distributed system, you cannot simultaneously guarantee Consistency, Availability, and Partition Tolerance at all times.",
+        "keywords": ["consisten", "availab", "partition", "toler", "trade", "network", "choose"]
+      },
+      {
+        "id": "q2",
+        "text": "How do you ensure data consistency in a distributed database?",
+        "referenceAnswer": "Ensure consistency using strong consistency models, two-phase commits, optimistic concurrency control, and conflict resolution strategies.",
+        "keywords": ["strong", "eventual", "quorum", "phase", "replicat", "conflict", "consensus"]
+      },
+      {
+        "id": "q3",
+        "text": "Explain the Raft consensus algorithm.",
+        "referenceAnswer": "Discuss leader election, log replication, safety, and how Raft achieves consensus in a distributed system.",
+        "keywords": ["leader", "election", "replicat", "follower", "heartbeat", "majority", "append"]
+      },
+      {
+        "id": "q4",
+        "text": "What is a stateless vs. stateful service?",
+        "referenceAnswer": "Stateless services don't retain client data between requests; stateful services maintain client state, useful for sessions and transactions.",
+        "keywords": ["session", "scal", "request", "stored", "sticky", "load balanc", "client"]
+      },
+      {
+        "id": "q5",
+        "text": "Design a large-scale distributed cache system.",
+        "referenceAnswer": "Consider consistency, data partitioning, eviction policies, and fault tolerance in distributed caching.",
+        "keywords": ["evict", "lru", "partition", "hashing", "replicat", "expir", "invalidat"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_senior_security",
+    "title": "Senior Software Engineer - Security Design",
+    "industry": "Technology",
+    "seniority": "Senior",
+    "questionType": "Technical",
+    "persona": "Formal, exacting head of security engineering.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Explain the principles of least privilege and defense in depth.",
+        "referenceAnswer": "Least privilege limits access rights; defense in depth layers security. Both minimize attack surfaces and provide redundancy.",
+        "keywords": ["layer", "minimi", "attack surface", "redundan", "permission", "multiple", "privilege"]
+      },
+      {
+        "id": "q2",
+        "text": "Design a secure and scalable authentication system for a web application.",
+        "referenceAnswer": "Implement OAuth for third-party integrations, use JWT for stateless authentication, and ensure protection against common security vulnerabilities.",
+        "keywords": ["hash", "jwt", "token", "oauth", "mfa", "refresh", "rate limit"]
+      },
+      {
+        "id": "q3",
+        "text": "Discuss the importance of security in API design.",
+        "referenceAnswer": "API security is vital to protect data and prevent unauthorized access, using authentication, validation, rate limiting, and encryption.",
+        "keywords": ["authenticat", "authoriz", "encrypt", "rate limit", "validat", "https", "token"]
+      },
+      {
+        "id": "q4",
+        "text": "Design a fraud detection system for online transactions.",
+        "referenceAnswer": "Use machine learning for anomaly detection, implement rule-based systems for known fraud patterns, ensure real-time processing.",
+        "keywords": ["anomal", "machine learning", "rule", "false positive", "feature", "score", "stream"]
+      },
+      {
+        "id": "q5",
+        "text": "Design a secure mobile payment system for developing countries.",
+        "referenceAnswer": "Focus on security protocols, offline capabilities, user authentication, and low-resource optimizations.",
+        "keywords": ["offline", "encrypt", "tokeniz", "authenticat", "bandwidth", "sms", "fraud"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_senior_data",
+    "title": "Senior Data Engineer - Pipelines and ML Systems",
+    "industry": "Technology",
+    "seniority": "Senior",
+    "questionType": "System Design",
+    "persona": "Composed data platform director.",
+    "questions": [
+      {
+        "id": "q1",
+        "text": "Design a data pipeline for processing big data in real-time.",
+        "referenceAnswer": "Utilize stream processing frameworks (like Apache Kafka, Spark Streaming), ensure fault tolerance, and manage backpressure.",
+        "keywords": ["kafka", "stream", "spark", "flink", "fault", "backpressure", "checkpoint"]
+      },
+      {
+        "id": "q2",
+        "text": "Design a system for efficient storage and retrieval of large-scale time-series data.",
+        "referenceAnswer": "Optimize for write-heavy loads, use time-based partitioning, efficient indexing, and consider data compression techniques.",
+        "keywords": ["partition", "compress", "downsampl", "index", "write", "retention", "timescale"]
+      },
+      {
+        "id": "q3",
+        "text": "Design a recommendation system for a large e-commerce platform.",
+        "referenceAnswer": "Use collaborative filtering, content-based filtering, or hybrid methods; consider scalability and real-time processing.",
+        "keywords": ["collaborative", "content", "hybrid", "cold start", "embedding", "ranking", "feature"]
+      },
+      {
+        "id": "q4",
+        "text": "Design a system to manage and process Internet of Things (IoT) data.",
+        "referenceAnswer": "Focus on handling large-scale data influx, real-time processing, data storage, and analytics.",
+        "keywords": ["ingest", "stream", "device", "storage", "analytic", "process", "mqtt"]
+      },
+      {
+        "id": "q5",
+        "text": "Design a scalable image processing pipeline for a photo-sharing app.",
+        "referenceAnswer": "Implement distributed processing, efficient storage, and consider ML techniques for feature extraction.",
+        "keywords": ["queue", "worker", "thumbnail", "resiz", "storage", "distribut", "cdn"]
+      }
+    ]
   }
 ]

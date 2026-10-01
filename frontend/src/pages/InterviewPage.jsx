@@ -3,6 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { useSpeech } from "../hooks/useSpeech.js";
 import { MicIcon, StopIcon, AlertIcon } from "../components/icons.jsx";
+import { usePageMeta } from "../hooks/usePageMeta.js";
+
+const MAX_ANSWER_LENGTH = 4000;
 
 export default function InterviewPage() {
   const { scenarioId } = useParams();
@@ -15,10 +18,20 @@ export default function InterviewPage() {
   const [progressIndex, setProgressIndex] = useState(0);
   const [total, setTotal] = useState(0);
   const [log, setLog] = useState([]); // { role: 'question'|'reaction'|'answer', text }
-  const [manualAnswer, setManualAnswer] = useState("");
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState("loading"); // loading | active | ready-to-finish | finishing | error
   const [error, setError] = useState("");
   const hasSpokenRef = useRef(null);
+  const draftBaseRef = useRef("");
+  // True once the microphone has produced text for the current answer. Typed answers are sent as
+  // "text" and score 0 for Fluency & Delivery, which measures spoken delivery.
+  const usedMicRef = useRef(false);
+
+  usePageMeta({
+    title: scenario?.title || "Interview",
+    description: "Live interview practice session with an AI interviewer.",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -57,24 +70,52 @@ export default function InterviewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQuestion]);
 
-  const liveAnswer = speech.supported ? speech.transcript : manualAnswer;
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  // Live speech results are appended after whatever was already in the box when the
+  // microphone was switched on, so a second recording adds to the answer instead of
+  // replacing it, and typed corrections are kept.
+  useEffect(() => {
+    if (speech.transcript) {
+      setDraft(draftBaseRef.current + speech.transcript);
+      usedMicRef.current = true;
+    }
+  }, [speech.transcript]);
+
+  function handleToggleMic() {
+    if (speech.isRecording) {
+      speech.stopRecording();
+      return;
+    }
+    draftBaseRef.current = draft.trim() ? `${draft.trimEnd()} ` : "";
+    speech.startRecording();
+  }
 
   async function handleSubmitAnswer() {
-    const answerText = liveAnswer.trim();
-    if (!answerText) return;
+    const answerText = draft.trim();
+    if (!answerText || submitting) return;
     speech.stopRecording();
-    setLog((prev) => [...prev, { role: "answer", text: answerText }]);
-    speech.resetTranscript();
-    setManualAnswer("");
+    setSubmitting(true);
+    setError("");
 
     try {
-      const { next } = await api.submitAnswer(sessionId, answerText);
-      if (next.reaction) {
-        setLog((prev) => [...prev, { role: "reaction", text: next.reaction }]);
-      }
+      const { next } = await api.submitAnswer(sessionId, answerText, usedMicRef.current ? "voice" : "text");
+      usedMicRef.current = false;
+      setLog((prev) => {
+        const entries = [...prev, { role: "answer", text: answerText }];
+        if (next.reaction) {
+          entries.push({ role: "reaction", text: next.reaction, generatedBy: next.reactionSource });
+        }
+        if (!next.done) entries.push({ role: "question", text: next.text });
+        return entries;
+      });
+      speech.resetTranscript();
+      draftBaseRef.current = "";
+      setDraft("");
       if (next.done) {
         setStatus("ready-to-finish");
         setCurrentQuestion(null);
+        setProgressIndex(total);
       } else {
         setCurrentQuestion({ questionId: next.questionId, text: next.text });
         setProgressIndex(next.index);
@@ -82,10 +123,13 @@ export default function InterviewPage() {
     } catch (err) {
       setError(err.message);
       setStatus("error");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   async function handleFinish() {
+    speech.stopRecording();
     setStatus("finishing");
     try {
       await api.finishSession(sessionId);
@@ -93,6 +137,17 @@ export default function InterviewPage() {
     } catch (err) {
       setError(err.message);
       setStatus("error");
+    }
+  }
+
+  function handleEndEarly() {
+    const answered = progressIndex;
+    if (
+      window.confirm(
+        `End the interview now? Only your ${answered} answered question${answered === 1 ? "" : "s"} will be scored.`
+      )
+    ) {
+      handleFinish();
     }
   }
 
@@ -119,6 +174,7 @@ export default function InterviewPage() {
   }
 
   const percent = total ? Math.round((progressIndex / total) * 100) : 0;
+  const tooLong = draft.length > MAX_ANSWER_LENGTH;
 
   return (
     <div className="page container">
@@ -134,12 +190,17 @@ export default function InterviewPage() {
 
       <div className="interview-layout">
         <div className="card card-pad">
-          {status === "ready-to-finish" ? (
+          {status === "finishing" ? (
+            <div className="stack" role="status">
+              <h2>Scoring your interview...</h2>
+              <p>Checking your answers against the rubric.</p>
+              <span className="spinner" aria-hidden="true" />
+            </div>
+          ) : status === "ready-to-finish" ? (
             <div className="stack">
               <h2>That's all the questions for this scenario.</h2>
               <p>Finish the session to generate your rubric-based feedback report.</p>
-              <button className="btn btn-primary" onClick={handleFinish} disabled={status === "finishing"}>
-                {status === "finishing" && <span className="spinner" aria-hidden="true" />}
+              <button className="btn btn-primary" onClick={handleFinish}>
                 Finish & see feedback
               </button>
             </div>
@@ -149,6 +210,21 @@ export default function InterviewPage() {
                 <strong>Interviewer{speech.isSpeaking ? " (speaking...)" : ""}:</strong>{" "}
                 {currentQuestion?.text}
               </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ marginTop: "0.5rem" }}
+                onClick={() => speech.speak(currentQuestion?.text)}
+              >
+                Repeat question
+              </button>
+
+              {speech.error && (
+                <div className="form-error" role="alert" style={{ marginTop: "1rem", marginBottom: 0 }}>
+                  <AlertIcon width={16} height={16} />
+                  <span>{speech.error}</span>
+                </div>
+              )}
 
               <div className="row" style={{ marginTop: "1.5rem", alignItems: "flex-start", gap: "1.25rem" }}>
                 {speech.supported ? (
@@ -156,7 +232,7 @@ export default function InterviewPage() {
                     <button
                       type="button"
                       className={`mic-button ${speech.isRecording ? "recording" : ""}`}
-                      onClick={speech.isRecording ? speech.stopRecording : speech.startRecording}
+                      onClick={handleToggleMic}
                       aria-label={speech.isRecording ? "Stop recording your answer" : "Start recording your answer"}
                     >
                       {speech.isRecording ? <StopIcon /> : <MicIcon />}
@@ -168,30 +244,45 @@ export default function InterviewPage() {
                 ) : null}
 
                 <div style={{ flex: 1 }}>
-                  {speech.supported ? (
-                    <div className="transcript-box" aria-live="polite">
-                      {liveAnswer || <span className="muted">Your transcribed answer will appear here.</span>}
-                    </div>
-                  ) : (
-                    <div className="field" style={{ margin: 0 }}>
-                      <label htmlFor="manual-answer">
-                        Your browser doesn't support speech recognition, type your answer instead.
-                      </label>
-                      <textarea
-                        id="manual-answer"
-                        value={manualAnswer}
-                        onChange={(e) => setManualAnswer(e.target.value)}
-                      />
-                    </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label htmlFor="answer">
+                      {speech.supported
+                        ? "Your answer (edit it if the transcript got something wrong)"
+                        : "Your browser doesn't support speech recognition, type your answer instead."}
+                    </label>
+                    <textarea
+                      id="answer"
+                      value={draft}
+                      readOnly={speech.isRecording}
+                      onChange={(e) => setDraft(e.target.value)}
+                      placeholder={speech.supported ? "Tap the microphone and speak, or type here." : ""}
+                    />
+                  </div>
+                  <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "var(--text-caption)" }}>
+                    {speech.supported
+                      ? "Answers you type score 0 for Fluency & Delivery, which measures spoken delivery. Use the microphone to be scored on it; you can still edit the transcript."
+                      : "Your browser can't record speech, so typed answers score 0 for Fluency & Delivery."}
+                  </p>
+                  {tooLong && (
+                    <p className="muted" role="alert" style={{ margin: "0.5rem 0 0" }}>
+                      Answers are limited to {MAX_ANSWER_LENGTH} characters.
+                    </p>
                   )}
-                  <button
-                    className="btn btn-primary"
-                    style={{ marginTop: "1rem" }}
-                    onClick={handleSubmitAnswer}
-                    disabled={!liveAnswer.trim()}
-                  >
-                    Submit answer
-                  </button>
+                  <div className="row wrap" style={{ marginTop: "1rem" }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleSubmitAnswer}
+                      disabled={!draft.trim() || submitting || tooLong}
+                    >
+                      {submitting && <span className="spinner" aria-hidden="true" />}
+                      Submit answer
+                    </button>
+                    {progressIndex >= 1 && (
+                      <button type="button" className="btn btn-ghost" onClick={handleEndEarly}>
+                        End session early
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </>
@@ -204,8 +295,11 @@ export default function InterviewPage() {
             <div className="transcript-log">
               {log.map((entry, i) => (
                 <div key={i} className={`transcript-turn ${entry.role === "answer" ? "answer" : "question"}`}>
-                  {entry.role === "answer" ? "You: " : entry.role === "reaction" ? "Interviewer: " : "Interviewer: "}
+                  {entry.role === "answer" ? "You: " : "Interviewer: "}
                   {entry.text}
+                  {entry.generatedBy && entry.generatedBy !== "scripted" && (
+                    <span className="muted"> (written by {entry.generatedBy === "local" ? "the local model" : "Gemini"})</span>
+                  )}
                 </div>
               ))}
             </div>

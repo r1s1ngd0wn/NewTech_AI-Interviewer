@@ -9,6 +9,7 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: "missing or invalid authorization token" });
   }
   req.user = user;
+  req.token = token;
   next();
 }
 

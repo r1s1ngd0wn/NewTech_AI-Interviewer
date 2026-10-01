@@ -2,8 +2,19 @@ const crypto = require("crypto");
 const { newId } = require("../utils/id");
 const store = require("../store");
 
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_NAME_LENGTH = 80;
+const MAX_PROFILE_FIELD_LENGTH = 80;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, 64).toString("hex");
+}
+
+function passwordMatches(password, user) {
+  const expected = Buffer.from(user.passwordHash, "hex");
+  const actual = Buffer.from(hashPassword(password, user.salt), "hex");
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
 function toPublicUser(user) {
@@ -11,14 +22,26 @@ function toPublicUser(user) {
   return publicUser;
 }
 
-function register({ email, password, name }) {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (!normalizedEmail || !password || !name) {
-    throw httpError(400, "email, password, and name are required");
+function requireString(value, field, maxLength) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw httpError(400, `${field} is required`);
   }
-  if (password.length < 6) {
-    throw httpError(400, "password must be at least 6 characters");
+  if (value.trim().length > maxLength) {
+    throw httpError(400, `${field} must be ${maxLength} characters or fewer`);
   }
+  return value.trim();
+}
+
+function register({ email, password, name } = {}) {
+  const normalizedEmail = requireString(email, "email", 254).toLowerCase();
+  if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    throw httpError(400, "email is not a valid address");
+  }
+  if (typeof password !== "string" || !password) throw httpError(400, "password is required");
+  if (password.length < 6) throw httpError(400, "password must be at least 6 characters");
+  if (password.length > 200) throw httpError(400, "password must be 200 characters or fewer");
+  const cleanName = requireString(name, "name", MAX_NAME_LENGTH);
+
   if (store.usersByEmail.has(normalizedEmail)) {
     throw httpError(409, "an account with this email already exists");
   }
@@ -27,7 +50,7 @@ function register({ email, password, name }) {
   const user = {
     id: newId("user"),
     email: normalizedEmail,
-    name,
+    name: cleanName,
     salt,
     passwordHash: hashPassword(password, salt),
     profile: {
@@ -46,12 +69,15 @@ function register({ email, password, name }) {
   return { user: toPublicUser(user), token };
 }
 
-function login({ email, password }) {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+function login({ email, password } = {}) {
+  if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+    throw httpError(400, "email and password are required");
+  }
+  const normalizedEmail = email.trim().toLowerCase();
   const userId = store.usersByEmail.get(normalizedEmail);
   const user = userId ? store.users.get(userId) : null;
 
-  if (!user || hashPassword(password, user.salt) !== user.passwordHash) {
+  if (!user || !passwordMatches(password, user)) {
     throw httpError(401, "invalid email or password");
   }
 
@@ -61,32 +87,44 @@ function login({ email, password }) {
 
 function issueToken(userId) {
   const token = crypto.randomBytes(24).toString("hex");
-  store.tokens.set(token, userId);
+  store.tokens.set(token, { userId, expiresAt: Date.now() + TOKEN_TTL_MS });
   return token;
 }
 
+function revokeToken(token) {
+  if (token) store.tokens.delete(token);
+}
+
 function getUserFromToken(token) {
-  const userId = store.tokens.get(token);
-  if (!userId) return null;
+  const record = store.tokens.get(token);
+  if (!record) return null;
+  // Tokens issued before expiry existed were stored as a bare userId string.
+  const userId = typeof record === "string" ? record : record.userId;
+  if (typeof record === "object" && record.expiresAt < Date.now()) {
+    store.tokens.delete(token);
+    return null;
+  }
   return store.users.get(userId) || null;
 }
 
-function updateProfile(userId, patch) {
+function updateProfile(userId, patch = {}) {
   const user = store.users.get(userId);
   if (!user) throw httpError(404, "user not found");
 
-  const allowed = ["targetIndustry", "targetRole", "experienceLevel", "name"];
-  for (const key of allowed) {
+  if (patch.name !== undefined) {
+    user.name = requireString(patch.name, "name", MAX_NAME_LENGTH);
+  }
+  for (const key of ["targetIndustry", "targetRole", "experienceLevel"]) {
     if (patch[key] === undefined) continue;
-    if (key === "name") {
-      user.name = patch.name;
-    } else {
-      user.profile[key] = patch[key];
+    if (patch[key] === null || patch[key] === "") {
+      user.profile[key] = null;
+      continue;
     }
+    user.profile[key] = requireString(patch[key], key, MAX_PROFILE_FIELD_LENGTH);
   }
-  if (user.profile.targetIndustry && user.profile.targetRole && user.profile.experienceLevel) {
-    user.profile.onboardingComplete = true;
-  }
+  user.profile.onboardingComplete = Boolean(
+    user.profile.targetIndustry && user.profile.targetRole && user.profile.experienceLevel
+  );
   store.users.set(userId, user);
   return toPublicUser(user);
 }
@@ -101,6 +139,7 @@ module.exports = {
   register,
   login,
   getUserFromToken,
+  revokeToken,
   updateProfile,
   toPublicUser,
   httpError,

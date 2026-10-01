@@ -3,11 +3,27 @@ const store = require("../store");
 const scenarioService = require("./scenarioService");
 const aiSimulator = require("./aiSimulator");
 const scoringService = require("./scoringService");
+const llmService = require("./llmService");
 const { httpError } = require("./authService");
+
+const STALE_SESSION_MS = 2 * 60 * 60 * 1000;
+const MAX_ANSWER_LENGTH = 4000;
 
 function startSession(userId, scenarioId) {
   const scenario = scenarioService.getScenario(scenarioId);
   if (!scenario) throw httpError(404, "scenario not found");
+
+  // Reopening a scenario before answering anything (page refresh, React StrictMode's
+  // double effect in dev) reuses the untouched session instead of orphaning a new one.
+  const untouched = listSessionsForUser(userId).find(
+    (s) => s.status === "in_progress" && s.scenarioId === scenarioId && s.turns.length === 0
+  );
+  if (untouched) {
+    return {
+      session: toPublicSession(untouched),
+      question: aiSimulator.firstQuestion(scenario),
+    };
+  }
 
   const session = {
     id: newId("sess"),
@@ -24,10 +40,24 @@ function startSession(userId, scenarioId) {
   return { session: toPublicSession(session), question };
 }
 
-function submitAnswer(userId, sessionId, answerText) {
+// inputMode is "voice" when the answer came from the microphone (even if the transcript was then
+// corrected by hand) and "text" otherwise. Anything else is treated as typed, because Fluency &
+// Delivery measures spoken delivery and a typed answer has none. The value comes from the browser,
+// so it is a practice-app honour system, not proof.
+function normalizeInputMode(inputMode) {
+  return inputMode === "voice" ? "voice" : "text";
+}
+
+function submitAnswer(userId, sessionId, answerText, inputMode) {
   const session = getOwnedSession(userId, sessionId);
   if (session.status !== "in_progress") {
     throw httpError(400, "session is not in progress");
+  }
+  if (typeof answerText !== "string" || !answerText.trim()) {
+    throw httpError(400, "answerText is required");
+  }
+  if (answerText.length > MAX_ANSWER_LENGTH) {
+    throw httpError(400, `answers are limited to ${MAX_ANSWER_LENGTH} characters`);
   }
   const scenario = scenarioService.getScenario(session.scenarioId);
   const answeredCount = session.turns.length;
@@ -37,6 +67,7 @@ function submitAnswer(userId, sessionId, answerText) {
   session.turns.push({
     questionId: currentQuestion.id,
     answerText: String(answerText || "").trim(),
+    inputMode: normalizeInputMode(inputMode),
     answeredAt: new Date().toISOString(),
   });
 
@@ -46,6 +77,26 @@ function submitAnswer(userId, sessionId, answerText) {
   }
   store.sessions.set(sessionId, session);
   return { session: toPublicSession(session), next };
+}
+
+// submitAnswer() plus an LLM-written interviewer reaction when one is configured. Any
+// failure (no key, timeout, rejected output) silently keeps the scripted reaction, and the
+// next question always comes from the scenario list.
+async function answerTurn(userId, sessionId, answerText, inputMode) {
+  const result = submitAnswer(userId, sessionId, answerText, inputMode);
+  result.next.reactionSource = "scripted";
+  // LLM_REACTIONS=off keeps the model for the chat only (saves quota on free API tiers).
+  if (!llmService.isEnabled() || process.env.LLM_REACTIONS === "off") return result;
+
+  try {
+    const session = getOwnedSession(userId, sessionId);
+    const scenario = scenarioService.getScenario(session.scenarioId);
+    result.next.reaction = await aiSimulator.llmReaction(scenario, session);
+    result.next.reactionSource = llmService.status().provider;
+  } catch {
+    // keep the scripted reaction
+  }
+  return result;
 }
 
 function finishSession(userId, sessionId) {
@@ -79,10 +130,35 @@ function getFeedback(userId, sessionId) {
   return feedback;
 }
 
-function deleteSession(userId, sessionId) {
-  getOwnedSession(userId, sessionId);
+function removeSessionData(sessionId) {
   store.sessions.delete(sessionId);
   store.feedbacks.delete(sessionId);
+  store.sessionChats.delete(sessionId);
+}
+
+function deleteSession(userId, sessionId) {
+  getOwnedSession(userId, sessionId);
+  removeSessionData(sessionId);
+}
+
+function deleteAllSessionsForUser(userId) {
+  for (const session of listSessionsForUser(userId)) {
+    removeSessionData(session.id);
+  }
+}
+
+// Removes interviews that were started but never finished (tab closed, abandoned).
+// Scored sessions are never touched.
+function purgeStaleSessions(maxAgeMs = STALE_SESSION_MS) {
+  const cutoff = Date.now() - maxAgeMs;
+  let purged = 0;
+  for (const session of store.sessions.values()) {
+    if (session.status !== "scored" && new Date(session.startedAt).getTime() < cutoff) {
+      removeSessionData(session.id);
+      purged += 1;
+    }
+  }
+  return purged;
 }
 
 function listSessionsForUser(userId) {
@@ -113,9 +189,13 @@ function toPublicSession(session) {
 module.exports = {
   startSession,
   submitAnswer,
+  answerTurn,
   finishSession,
   getSession,
   getFeedback,
   deleteSession,
+  deleteAllSessionsForUser,
+  purgeStaleSessions,
   listSessionsForUser,
+  getOwnedSession,
 };

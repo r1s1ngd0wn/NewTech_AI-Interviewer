@@ -27,8 +27,8 @@
     },
     {
       "id": "vocabulary_grammar",
-      "name": "Vocabulary & Grammar",
-      "description": "Range of vocabulary and basic grammatical correctness.",
+      "name": "Vocabulary Range",
+      "description": "Variety and precision of word choice. Grammar is not checked automatically.",
       "bands": [
         { "band": 1, "label": "Very limited", "min": 0 },
         { "band": 2, "label": "Limited", "min": 35 },

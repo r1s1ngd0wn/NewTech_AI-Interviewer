@@ -20,6 +20,7 @@ function seedTestAccount() {
 
   authService.updateProfile(user.id, {
     targetIndustry: "Technology",
+    targetRole: "Software Engineer",
     experienceLevel: "Junior",
   });
 
@@ -31,7 +32,7 @@ function seedTestAccount() {
     "When deadlines are tight, I prioritize tasks by impact first, then communicate early with my manager about any risks, and break the work into smaller steps so nothing feels overwhelming.",
   ];
   for (const answerText of answers) {
-    sessionService.submitAnswer(user.id, session.id, answerText);
+    sessionService.submitAnswer(user.id, session.id, answerText, "voice");
   }
   sessionService.finishSession(user.id, session.id);
 

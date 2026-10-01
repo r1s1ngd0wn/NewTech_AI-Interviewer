@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { api, getToken, setToken } from "../lib/api.js";
+import { api, getToken, setToken, AUTH_EXPIRED_EVENT } from "../lib/api.js";
 
 const AuthContext = createContext(null);
 
@@ -29,6 +29,12 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  useEffect(() => {
+    const handleExpired = () => setUser(null);
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+  }, []);
+
   const login = useCallback(async (email, password) => {
     const { user, token } = await api.login({ email, password });
     setToken(token);
@@ -43,7 +49,12 @@ export function AuthProvider({ children }) {
     return user;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch {
+      // The token may already be invalid; clearing it locally is what matters.
+    }
     setToken(null);
     setUser(null);
   }, []);

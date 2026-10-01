@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { usePageMeta } from "../hooks/usePageMeta.js";
 
 export default function ScenariosPage() {
   const { user } = useAuth();
@@ -9,8 +10,14 @@ export default function ScenariosPage() {
   const [scenarios, setScenarios] = useState([]);
   const [filters, setFilters] = useState({ industries: [], seniorities: [], questionTypes: [] });
   const [activeFilters, setActiveFilters] = useState({});
+  const [recommendedIds, setRecommendedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  usePageMeta({
+    title: "Scenarios",
+    description: "Browse fixed interview scenarios by industry, seniority, and question type.",
+  });
 
   useEffect(() => {
     api.scenarioFilters().then(setFilters).catch(() => {});
@@ -26,15 +33,16 @@ export default function ScenariosPage() {
       .finally(() => setLoading(false));
   }, [activeFilters]);
 
-  const recommendedId = useMemo(() => {
-    if (!user?.profile?.targetIndustry) return null;
-    const match = scenarios.find(
-      (s) =>
-        s.industry === user.profile.targetIndustry &&
-        (!user.profile.experienceLevel || s.seniority === user.profile.experienceLevel)
-    );
-    return match?.id || null;
-  }, [scenarios, user]);
+  useEffect(() => {
+    if (!user?.profile?.targetIndustry) {
+      setRecommendedIds(new Set());
+      return;
+    }
+    api
+      .recommendedScenarios()
+      .then((data) => setRecommendedIds(new Set(data.scenarios.map((s) => s.id))))
+      .catch(() => setRecommendedIds(new Set()));
+  }, [user]);
 
   function toggleFilter(key, value) {
     setActiveFilters((prev) => ({ ...prev, [key]: prev[key] === value ? undefined : value }));
@@ -45,8 +53,8 @@ export default function ScenariosPage() {
       <span className="eyebrow">Scenario Library</span>
       <h1>Choose an interview scenario</h1>
       <p>
-        Every scenario is a fixed set of questions by industry, seniority, and type (FR-2.1) - the
-        AI interviewer will never go outside this script (FR-2.4).
+        Every scenario is a fixed set of questions for one industry, seniority and question type.
+        The interviewer only asks from that list.
       </p>
 
       <div className="filter-bar">
@@ -84,8 +92,11 @@ export default function ScenariosPage() {
                 src={`/images/interview-${(i % 3) + 1}.jpg`}
                 alt=""
               />
-              <div className="stack" style={{ padding: "0 var(--spacing-8) var(--spacing-8)" }}>
-                {scenario.id === recommendedId && <span className="tag tag-active">Recommended for you</span>}
+              <div
+                className="stack"
+                style={{ padding: "0 var(--spacing-8) var(--spacing-8)", flex: 1 }}
+              >
+                {recommendedIds.has(scenario.id) && <span className="tag tag-active">Recommended for you</span>}
                 <h3 className="mt-0">{scenario.title}</h3>
                 <div className="row wrap" style={{ marginBottom: "0.25rem" }}>
                   <span className="tag">{scenario.industry}</span>
@@ -95,6 +106,7 @@ export default function ScenariosPage() {
                 <p className="mb-0">{scenario.questionCount} questions, spoken interview</p>
                 <button
                   className="btn btn-primary"
+                  style={{ marginTop: "auto" }}
                   onClick={() => navigate(`/interview/${scenario.id}`)}
                 >
                   Start interview

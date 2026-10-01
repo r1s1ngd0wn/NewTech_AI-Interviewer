@@ -2,11 +2,24 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { AlertIcon } from "../components/icons.jsx";
+import ScoreTrendChart from "../components/ScoreTrendChart.jsx";
+import { usePageMeta } from "../hooks/usePageMeta.js";
+
+function formatSessionDate(iso) {
+  return iso
+    ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "-";
+}
 
 export default function DashboardPage() {
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  usePageMeta({
+    title: "Progress",
+    description: "Score trends and session history across every completed interview.",
+  });
 
   useEffect(() => {
     api.getProgress().then(setProgress).catch((err) => setError(err.message));
@@ -15,7 +28,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="page container">
-        <div className="form-error">
+        <div className="form-error" role="alert">
           <AlertIcon width={16} height={16} />
           <span>{error}</span>
         </div>
@@ -50,20 +63,25 @@ export default function DashboardPage() {
     <div className="page container">
       <span className="eyebrow">Progress</span>
       <h1>Your practice history</h1>
-      <p>Session history and score trends across every completed interview (FR-7.1 / FR-7.2).</p>
+      <p>Session history and score trends across every completed interview.</p>
 
       {progress.weakestCriterion && (
         <div className="card card-pad" style={{ marginBottom: "1.5rem" }}>
           <h3 className="mt-0">Most persistent area to work on</h3>
           <p className="mb-0">
-            Across your sessions, <strong>{criterionLabel(progress.weakestCriterion.criterionId)}</strong> has
-            averaged {progress.weakestCriterion.averageScore}/100, your lowest scoring criterion overall.
+            Across your sessions, <strong>{progress.weakestCriterion.name}</strong> has averaged{" "}
+            {progress.weakestCriterion.averageScore}/100, your lowest scoring criterion overall.
           </p>
         </div>
       )}
 
+      <div className="card card-pad" style={{ marginBottom: "1.5rem" }}>
+        <h3 className="mt-0">Overall score by session</h3>
+        <ScoreTrendChart history={progress.history} />
+      </div>
+
       <div className="card card-pad" style={{ marginBottom: "1.5rem", overflowX: "auto" }}>
-        <h3 className="mt-0">Score trend</h3>
+        <h3 className="mt-0">Score by criterion</h3>
         <TrendTable trend={progress.trend} history={progress.history} />
       </div>
 
@@ -78,7 +96,7 @@ export default function DashboardPage() {
                 <h3 className="mt-0 mb-0">{h.scenarioTitle}</h3>
                 <span className="tag tag-active">{h.overallScore}/100</span>
               </div>
-              <p className="muted">{h.date ? new Date(h.date).toLocaleString() : "-"}</p>
+              <p className="muted">{formatSessionDate(h.date)}</p>
               <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/feedback/${h.sessionId}`)}>
                 View feedback
               </button>
@@ -89,38 +107,26 @@ export default function DashboardPage() {
   );
 }
 
-function criterionLabel(id) {
-  const labels = {
-    fluency: "Fluency & Delivery",
-    relevance: "Relevance",
-    vocabulary_grammar: "Vocabulary & Grammar",
-    structure: "Structure",
-  };
-  return labels[id] || id;
-}
-
 function TrendTable({ trend, history }) {
   if (!trend.length) return <p className="muted">Not enough data yet.</p>;
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+    <table className="trend-table">
       <thead>
         <tr>
-          <th style={{ textAlign: "left", padding: "0.5rem 0.75rem" }}>Criterion</th>
+          <th scope="col">Criterion</th>
           {history.map((h) => (
-            <th key={h.sessionId} style={{ textAlign: "center", padding: "0.5rem 0.75rem" }} className="muted">
-              {new Date(h.date).toLocaleDateString()}
+            <th key={h.sessionId} scope="col" className="muted">
+              {formatSessionDate(h.date)}
             </th>
           ))}
         </tr>
       </thead>
       <tbody>
         {trend.map((row) => (
-          <tr key={row.criterionId} style={{ borderTop: "1px solid var(--color-hairline)" }}>
-            <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600 }}>{criterionLabel(row.criterionId)}</td>
+          <tr key={row.criterionId}>
+            <th scope="row">{row.name}</th>
             {row.points.map((p, i) => (
-              <td key={i} style={{ textAlign: "center", padding: "0.5rem 0.75rem" }}>
-                {p.score ?? "-"}
-              </td>
+              <td key={i}>{p.score ?? "-"}</td>
             ))}
           </tr>
         ))}

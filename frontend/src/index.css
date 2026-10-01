@@ -5,8 +5,8 @@
   --color-porcelain: #ffffff;
   --color-charcoal: #1d1d1d;
   --color-hairline: #e5e7eb;
-  --color-smoke: #737373;
-  --color-ash: #a3a3a3;
+  --color-smoke: #666666; /* 5.7:1 on white, 5.2:1 on mist (WCAG AA for body text) */
+  --color-ash: #6b6b6b;
   --color-mist: #f3f4f6;
   --color-graphite: #5e5e5e;
   --color-bone: #cacaca;
@@ -539,6 +539,160 @@ p {
   padding: var(--spacing-24);
   background: var(--color-mist);
   border: 1px solid var(--color-hairline);
+}
+.data-card {
+  margin-top: var(--spacing-24);
+}
+.trend-chart {
+  position: relative;
+  max-width: 44rem;
+}
+.trend-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.trend-grid {
+  stroke: var(--color-hairline);
+  stroke-width: 1;
+}
+.trend-axis {
+  fill: var(--color-smoke);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.trend-line {
+  fill: none;
+  stroke: var(--color-charcoal);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.trend-dot {
+  fill: var(--color-charcoal);
+  stroke: var(--color-porcelain);
+  stroke-width: 2;
+}
+.trend-dot-last {
+  stroke-width: 3;
+}
+.trend-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.trend-hit:focus-visible {
+  outline: 2px solid var(--color-charcoal);
+  outline-offset: 2px;
+}
+.trend-value {
+  fill: var(--color-charcoal);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.trend-tooltip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 14px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-8) var(--spacing-12);
+  border-radius: var(--radius-card);
+  background: var(--color-charcoal);
+  color: var(--color-porcelain);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+.trend-tooltip strong {
+  font-size: 14px;
+}
+.trend-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.trend-table th,
+.trend-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  white-space: nowrap;
+}
+.trend-table thead th:first-child,
+.trend-table tbody th {
+  text-align: left;
+  font-weight: 600;
+}
+.trend-table thead th {
+  font-weight: 500;
+  font-size: var(--text-caption);
+}
+.trend-table tbody tr {
+  border-top: 1px solid var(--color-hairline);
+}
+.chat-panel-caption {
+  font-size: var(--text-caption);
+  margin-top: calc(var(--spacing-8) * -1);
+  margin-bottom: var(--spacing-16);
+}
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  max-height: 22rem;
+  overflow-y: auto;
+  padding-right: var(--spacing-8);
+  margin-bottom: var(--spacing-16);
+}
+.chat-msg {
+  border-radius: var(--radius-card);
+  padding: var(--spacing-12) var(--spacing-16);
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+  max-width: 34rem;
+}
+.chat-msg-assistant {
+  background: var(--color-mist);
+  border: 1px solid var(--color-hairline);
+  align-self: flex-start;
+}
+.chat-msg-note {
+  display: block;
+  margin-top: var(--spacing-8);
+  font-size: var(--text-caption);
+  color: var(--color-smoke);
+}
+.chat-msg-pending {
+  color: var(--color-smoke);
+}
+.chat-msg-user {
+  background: var(--color-charcoal);
+  color: var(--color-porcelain);
+  align-self: flex-end;
+}
+.chat-composer {
+  display: flex;
+  gap: var(--spacing-8);
+}
+.chat-composer input {
+  flex: 1;
+  border: 1px solid var(--color-slate);
+  border-radius: var(--radius-card);
+  padding: var(--spacing-12) var(--spacing-16);
+  font-size: var(--text-body);
+  font-family: inherit;
+  background: var(--color-porcelain);
+  color: var(--color-charcoal);
+}
+.chat-composer .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  flex: none;
 }
 .mic-button {
   width: 4.5rem;

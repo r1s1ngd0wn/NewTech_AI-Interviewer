@@ -12,6 +12,14 @@ function getScenario(id) {
   return scenarios.find((s) => s.id === id) || null;
 }
 
+// What the client may see about a scenario. Question text and per-question keywords stay
+// server-side: the keywords are the relevance answer key, and the questions are revealed
+// one at a time by the interview flow.
+function getPublicScenario(id) {
+  const scenario = getScenario(id);
+  return scenario ? toSummary(scenario) : null;
+}
+
 function toSummary(scenario) {
   const { questions, persona, ...summary } = scenario;
   return { ...summary, questionCount: questions.length };
@@ -33,4 +41,4 @@ function getFilterOptions() {
   };
 }
 
-module.exports = { listScenarios, getScenario, recommendFor, getFilterOptions };
+module.exports = { listScenarios, getScenario, getPublicScenario, recommendFor, getFilterOptions };

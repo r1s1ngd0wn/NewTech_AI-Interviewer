@@ -8,6 +8,7 @@ class SqliteTable {
     this.getStmt = db.prepare(`SELECT value FROM ${tableName} WHERE ${keyColumn} = ?`);
     this.hasStmt = db.prepare(`SELECT 1 FROM ${tableName} WHERE ${keyColumn} = ?`);
     this.allStmt = db.prepare(`SELECT value FROM ${tableName}`);
+    this.entriesStmt = db.prepare(`SELECT ${keyColumn} AS key, value FROM ${tableName}`);
     this.deleteStmt = db.prepare(`DELETE FROM ${tableName} WHERE ${keyColumn} = ?`);
     this.upsertStmt = db.prepare(
       `INSERT INTO ${tableName} (${keyColumn}, value) VALUES (?, ?)
@@ -35,6 +36,10 @@ class SqliteTable {
 
   values() {
     return this.allStmt.all().map((row) => JSON.parse(row.value));
+  }
+
+  entries() {
+    return this.entriesStmt.all().map((row) => [row.key, JSON.parse(row.value)]);
   }
 }
 

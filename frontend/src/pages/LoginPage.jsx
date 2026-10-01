@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { AlertIcon } from "../components/icons.jsx";
 import HeroCarousel from "../components/HeroCarousel.jsx";
+import { usePageMeta } from "../hooks/usePageMeta.js";
 
 export default function LoginPage() {
   const [mode, setMode] = useState("login");
@@ -15,8 +16,15 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) navigate("/scenarios", { replace: true });
+    if (user) {
+      navigate(user.profile?.onboardingComplete ? "/scenarios" : "/onboarding", { replace: true });
+    }
   }, [user, navigate]);
+
+  usePageMeta({
+    title: mode === "login" ? "Log in" : "Create account",
+    description: "Practice English job interviews with an AI simulator and get rubric-based feedback after each session.",
+  });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -28,7 +36,6 @@ export default function LoginPage() {
       } else {
         await register(email, password, name);
       }
-      navigate("/onboarding");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -53,7 +60,7 @@ export default function LoginPage() {
       <div className="hero-form-panel">
         <div className="form-card" style={{ width: "100%" }}>
           <span className="eyebrow">InterviewAI</span>
-          <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
+          <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
           <p>
             Practice English job interviews with an AI simulator and get rubric-based feedback
             after each session.

@@ -18,7 +18,7 @@ router.get("/recommended", requireAuth, (req, res) => {
 });
 
 router.get("/:id", (req, res) => {
-  const scenario = scenarioService.getScenario(req.params.id);
+  const scenario = scenarioService.getPublicScenario(req.params.id);
   if (!scenario) return res.status(404).json({ error: "scenario not found" });
   res.json({ scenario });
 });

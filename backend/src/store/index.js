@@ -10,6 +10,7 @@ const usersByEmail = new SqliteTable(db, "users_by_email", "email");
 const tokens = new SqliteTable(db, "tokens", "token");
 const sessions = new SqliteTable(db, "sessions", "id");
 const feedbacks = new SqliteTable(db, "feedbacks", "session_id");
+const sessionChats = new SqliteTable(db, "session_chats", "session_id");
 
 module.exports = {
   users,
@@ -17,4 +18,5 @@ module.exports = {
   tokens,
   sessions,
   feedbacks,
+  sessionChats,
 };

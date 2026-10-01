@@ -1,24 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+const SpeechRecognitionImpl =
+  typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+
+const ERROR_MESSAGES = {
+  "not-allowed": "Microphone access is blocked. Allow it in your browser's site settings, or type your answer instead.",
+  "service-not-allowed": "Microphone access is blocked. Allow it in your browser's site settings, or type your answer instead.",
+  "no-speech": "I didn't catch anything. Tap the microphone and try again, or type your answer.",
+  "audio-capture": "No microphone was found. Connect one, or type your answer instead.",
+  network: "Speech recognition needs a network connection. Type your answer instead.",
+};
+
 // Wraps the browser's Web Speech API for STT (SpeechRecognition) and TTS
 // (speechSynthesis). Matches SRS 4.2 "Frontend <-> Speech Service" at the
 // interface level; a self-hosted STT/TTS engine could replace this hook
 // later without touching the interview page's logic.
 export function useSpeech() {
-  const [supported, setSupported] = useState(true);
+  const supported = Boolean(SpeechRecognitionImpl);
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [error, setError] = useState("");
   const [finalTranscript, setFinalTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const recognitionRef = useRef(null);
 
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSupported(false);
-      return;
-    }
-    const recognition = new SpeechRecognition();
+    if (!SpeechRecognitionImpl) return undefined;
+    const recognition = new SpeechRecognitionImpl();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
@@ -34,19 +42,33 @@ export function useSpeech() {
       if (finalText) setFinalTranscript((prev) => `${prev}${finalText} `);
       setInterimTranscript(interimText);
     };
-    recognition.onend = () => setIsRecording(false);
-    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => {
+      setIsRecording(false);
+      setInterimTranscript("");
+    };
+    recognition.onerror = (event) => {
+      setIsRecording(false);
+      if (event.error === "aborted") return;
+      setError(ERROR_MESSAGES[event.error] || "Speech recognition stopped unexpectedly. You can type your answer instead.");
+    };
 
     recognitionRef.current = recognition;
-    return () => recognition.stop();
+    return () => recognition.abort();
   }, []);
 
   const startRecording = useCallback(() => {
     if (!recognitionRef.current) return;
+    // Stop the interviewer's voice so the microphone doesn't transcribe it.
+    window.speechSynthesis?.cancel();
     setFinalTranscript("");
     setInterimTranscript("");
-    recognitionRef.current.start();
-    setIsRecording(true);
+    setError("");
+    try {
+      recognitionRef.current.start();
+      setIsRecording(true);
+    } catch {
+      // start() throws if recognition is already running; nothing to do.
+    }
   }, []);
 
   const stopRecording = useCallback(() => {
@@ -75,6 +97,7 @@ export function useSpeech() {
     supported,
     isRecording,
     isSpeaking,
+    error,
     transcript: `${finalTranscript}${interimTranscript}`,
     startRecording,
     stopRecording,

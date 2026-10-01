@@ -1,0 +1,17 @@
+# InterviewAI
+
+> Practice English job interviews against an AI simulator bounded to a fixed scenario, then
+> get rubric-based feedback (per-criterion scores, strengths, and improvement suggestions),
+> not free-form AI commentary.
+
+InterviewAI is a login-gated practice tool, not a public content site - most routes require an
+account and are not meaningfully crawlable. See `/login` for entry.
+
+## Key facts
+
+- Interview scenarios are a fixed library (industry x seniority x question type), not
+  open-ended AI-generated questions.
+- Scoring is rubric-based and deterministic: fluency, relevance, vocabulary/grammar, and
+  structure, each computed from the transcript text against fixed criteria - never an
+  unconstrained AI judgment of the whole interview.
+- Speech input/output uses the browser's Web Speech API.

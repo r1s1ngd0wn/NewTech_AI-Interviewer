@@ -16,7 +16,11 @@ function getProgress(userId) {
     scenarioTitle: scenarioService.getScenario(session.scenarioId)?.title,
     date: session.endedAt,
     overallScore: feedback.overallScore,
-    criteria: feedback.criteria.map((c) => ({ criterionId: c.criterionId, score: c.averageScore })),
+    criteria: feedback.criteria.map((c) => ({
+      criterionId: c.criterionId,
+      name: c.name,
+      score: c.averageScore,
+    })),
   }));
 
   const trend = buildTrend(history);
@@ -25,10 +29,22 @@ function getProgress(userId) {
   return { history, trend, weakestCriterion };
 }
 
+// Criterion names come from the most recent session so a renamed rubric criterion
+// shows its current name, not the one stored on older feedback.
+function latestNames(history) {
+  const names = {};
+  for (const h of history) {
+    for (const c of h.criteria) names[c.criterionId] = c.name;
+  }
+  return names;
+}
+
 function buildTrend(history) {
+  const names = latestNames(history);
   const criterionIds = history[0]?.criteria.map((c) => c.criterionId) || [];
   return criterionIds.map((criterionId) => ({
     criterionId,
+    name: names[criterionId],
     points: history.map((h) => ({
       date: h.date,
       score: h.criteria.find((c) => c.criterionId === criterionId)?.score ?? null,
@@ -38,6 +54,7 @@ function buildTrend(history) {
 
 function findWeakestCriterion(history) {
   if (!history.length) return null;
+  const names = latestNames(history);
   const totals = {};
   const counts = {};
   for (const h of history) {
@@ -51,7 +68,13 @@ function findWeakestCriterion(history) {
     const avg = totals[criterionId] / counts[criterionId];
     if (!weakest || avg < weakest.avg) weakest = { criterionId, avg };
   }
-  return weakest && { criterionId: weakest.criterionId, averageScore: Math.round(weakest.avg) };
+  return (
+    weakest && {
+      criterionId: weakest.criterionId,
+      name: names[weakest.criterionId],
+      averageScore: Math.round(weakest.avg),
+    }
+  );
 }
 
 module.exports = { getProgress };

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /login
+Disallow: /scenarios
+Disallow: /interview/
+Disallow: /feedback/
+Disallow: /dashboard
+Disallow: /onboarding
+
+# Update the domain below once this is deployed to a real host.
+Sitemap: https://interviewai.example.com/sitemap.xml

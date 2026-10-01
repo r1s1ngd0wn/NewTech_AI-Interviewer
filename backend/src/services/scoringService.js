@@ -3,30 +3,17 @@
 // fixed rubric in data/rubric.json, so the process is auditable and reproducible (FR-5.2..5.4).
 
 const rubric = require("../data/rubric.json");
+const { words, sentences, fillerRatio, containsPhrase } = require("../utils/text");
 
-const FILLER_WORDS = ["um", "uh", "like", "you know", "sort of", "kind of", "basically"];
 const STRUCTURE_MARKERS = [
   "situation", "task", "action", "result",
   "first", "then", "next", "finally", "as a result", "so i",
 ];
-
-function words(text) {
-  return text.trim().split(/\s+/).filter(Boolean);
-}
-
-function sentences(text) {
-  return text.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean);
-}
-
-function fillerRatio(text) {
-  const lower = text.toLowerCase();
-  const fillerCount = FILLER_WORDS.reduce(
-    (count, filler) => count + (lower.split(filler).length - 1),
-    0
-  );
-  const total = words(text).length || 1;
-  return fillerCount / total;
-}
+// Vocabulary diversity is measured over a fixed window so long answers are not
+// penalised: unique/total shrinks naturally as an answer gets longer.
+const DIVERSITY_WINDOW = 50;
+const STRENGTH_MIN = 55;
+const IMPROVE_BELOW = 75;
 
 // --- Per-criterion metric functions, each returns a 0-100 raw score --------------------
 
@@ -49,7 +36,8 @@ function scoreRelevance(text, question) {
 function scoreVocabularyGrammar(text) {
   const w = words(text).map((t) => t.toLowerCase().replace(/[^a-z']/g, "")).filter(Boolean);
   if (!w.length) return 0;
-  const uniqueRatio = new Set(w).size / w.length;
+  const windowed = w.slice(0, DIVERSITY_WINDOW);
+  const uniqueRatio = new Set(windowed).size / windowed.length;
   const avgWordLength = w.reduce((sum, t) => sum + t.length, 0) / w.length;
   const diversityScore = clamp(uniqueRatio * 130, 0, 100);
   const lengthBonus = clamp((avgWordLength - 3) * 15, -20, 20);
@@ -58,7 +46,7 @@ function scoreVocabularyGrammar(text) {
 
 function scoreStructure(text) {
   const lower = text.toLowerCase();
-  const markerHits = STRUCTURE_MARKERS.filter((m) => lower.includes(m)).length;
+  const markerHits = STRUCTURE_MARKERS.filter((m) => containsPhrase(lower, m)).length;
   const sentenceCount = sentences(text).length;
   const markerScore = clamp((markerHits / 3) * 70, 0, 70);
   const sentenceScore = clamp((sentenceCount / 4) * 30, 0, 30);
@@ -79,7 +67,8 @@ function bandFor(criterionId, rawScore) {
 // Scores one turn (question + answer) against every rubric criterion.
 function scoreTurn(turn, question) {
   const raw = {
-    fluency: scoreFluency(turn.answerText),
+    // Fluency & Delivery is about spoken delivery, so an answer that was typed scores 0.
+    fluency: turn.inputMode === "voice" ? scoreFluency(turn.answerText) : 0,
     relevance: scoreRelevance(turn.answerText, question),
     vocabulary_grammar: scoreVocabularyGrammar(turn.answerText),
     structure: scoreStructure(turn.answerText),
@@ -123,23 +112,43 @@ function scoreSession(session, scenario) {
     };
   });
 
+  // A criterion only counts as a strength from band 3 up (score 55+), and only counts as
+  // something to improve below band 4 (under 75); otherwise "solid, scoring Off-topic" happens.
   const ranked = [...criteriaSummary].sort((a, b) => b.averageScore - a.averageScore);
-  const strengths = ranked.slice(0, Math.min(3, ranked.length)).map((c, i) => ({
-    criterionId: c.criterionId,
-    name: c.name,
-    note:
-      i === 0
-        ? `${c.name} was your strongest area, scoring "${c.label}".`
-        : `${c.name} was also solid, scoring "${c.label}".`,
-  }));
-  const improvements = [...ranked]
-    .reverse()
-    .slice(0, Math.min(3, ranked.length))
-    .map((c) => ({
-      criterionId: c.criterionId,
-      name: c.name,
-      note: suggestionFor(c.criterionId, c.label),
-    }));
+  const solid = ranked.filter((c) => c.averageScore >= STRENGTH_MIN).slice(0, 3);
+  const strengths = solid.length
+    ? solid.map((c, i) => ({
+        criterionId: c.criterionId,
+        name: c.name,
+        note:
+          i === 0
+            ? `${c.name} was your strongest area, scoring "${c.label}".`
+            : `${c.name} was also solid, scoring "${c.label}".`,
+      }))
+    : [
+        {
+          criterionId: ranked[0].criterionId,
+          name: ranked[0].name,
+          note: `No criterion reached the middle band yet. ${ranked[0].name} was your relatively strongest area, scoring "${ranked[0].label}".`,
+        },
+      ];
+  const spokenAnswers = session.turns.filter((t) => t.inputMode === "voice").length;
+  const typedAnswers = session.turns.length - spokenAnswers;
+  const weak = [...ranked].reverse().filter((c) => c.averageScore < IMPROVE_BELOW).slice(0, 3);
+  const lowest = ranked[ranked.length - 1];
+  const improvements = weak.length
+    ? weak.map((c) => ({
+        criterionId: c.criterionId,
+        name: c.name,
+        note: suggestionFor(c.criterionId, c.label, { spokenAnswers, typedAnswers }),
+      }))
+    : [
+        {
+          criterionId: lowest.criterionId,
+          name: lowest.name,
+          note: `Every criterion scored "Strong" or better. ${lowest.name} was lowest at ${lowest.averageScore}/100, so that is the place to keep polishing.`,
+        },
+      ];
 
   const highlights = session.turns.map((turn, i) => ({
     questionId: turn.questionId,
@@ -157,6 +166,10 @@ function scoreSession(session, scenario) {
     scenarioId: scenario.id,
     scenarioTitle: scenario.title,
     generatedAt: new Date().toISOString(),
+    questionsAnswered: session.turns.length,
+    questionsTotal: scenario.questions.length,
+    spokenAnswers,
+    typedAnswers,
     overallScore,
     criteria: criteriaSummary,
     strengths,
@@ -166,11 +179,16 @@ function scoreSession(session, scenario) {
   };
 }
 
-function suggestionFor(criterionId, label) {
+function suggestionFor(criterionId, label, { spokenAnswers = 0, typedAnswers = 0 } = {}) {
+  if (criterionId === "fluency" && typedAnswers > 0) {
+    return spokenAnswers === 0
+      ? `Fluency & Delivery is scored on spoken answers. All of your answers were typed, so it scored 0. Answer with the microphone to be scored on your delivery. (currently: ${label}.)`
+      : `${typedAnswers} of your ${typedAnswers + spokenAnswers} answers were typed and scored 0 for Fluency & Delivery, which measures spoken delivery. Speak every answer to be scored on it, and cut filler words like 'um' or 'like'. (currently: ${label}.)`;
+  }
   const suggestions = {
     fluency: "Try to give fuller answers (aim for 45-60 seconds) and cut filler words like 'um' or 'like'.",
     relevance: "Anchor your answer more directly to the question's keywords before adding extra detail.",
-    vocabulary_grammar: "Vary your vocabulary and double-check subject-verb agreement in longer sentences.",
+    vocabulary_grammar: "Vary your word choice and reach for more precise terms instead of repeating the same words.",
     structure: "Use a clear shape - situation, action you took, then the result - instead of a free-form narrative.",
   };
   return `${suggestions[criterionId]} (currently: ${label}.)`;

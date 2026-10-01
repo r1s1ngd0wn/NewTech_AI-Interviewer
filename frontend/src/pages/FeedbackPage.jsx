@@ -2,13 +2,20 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import ScoreBar from "../components/ScoreBar.jsx";
+import SessionChat from "../components/SessionChat.jsx";
 import { CheckIcon, AlertIcon, TrashIcon } from "../components/icons.jsx";
+import { usePageMeta } from "../hooks/usePageMeta.js";
 
 export default function FeedbackPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const [feedback, setFeedback] = useState(null);
   const [error, setError] = useState("");
+
+  usePageMeta({
+    title: feedback ? `Feedback - ${feedback.scenarioTitle}` : "Feedback",
+    description: "Rubric-based feedback report for a completed interview session.",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +58,19 @@ export default function FeedbackPage() {
       <span className="eyebrow">Feedback report</span>
       <h1>{feedback.scenarioTitle}</h1>
       <p>Rubric v{feedback.rubricVersion}, generated {new Date(feedback.generatedAt).toLocaleString()}</p>
+      {feedback.typedAnswers > 0 && (
+        <p className="muted">
+          {feedback.typedAnswers === feedback.questionsAnswered
+            ? "All of your answers were typed, so Fluency & Delivery scored 0. It measures spoken delivery."
+            : `${feedback.typedAnswers} of your ${feedback.questionsAnswered} answers were typed and scored 0 for Fluency & Delivery, which measures spoken delivery.`}
+        </p>
+      )}
+      {feedback.questionsTotal > feedback.questionsAnswered && (
+        <p className="muted">
+          You ended this session early: {feedback.questionsAnswered} of {feedback.questionsTotal} questions
+          were answered and scored.
+        </p>
+      )}
 
       <div className="grid grid-2" style={{ marginBottom: "1.5rem" }}>
         <div className="card card-pad text-center">
@@ -107,6 +127,10 @@ export default function FeedbackPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div style={{ marginBottom: "1.5rem" }}>
+        <SessionChat sessionId={sessionId} />
       </div>
 
       <div className="row wrap">
