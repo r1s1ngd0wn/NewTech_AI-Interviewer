@@ -10,8 +10,9 @@ export function setToken(token) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
-async function request(path, { method = "GET", body, auth = true } = {}) {
-  const headers = { "Content-Type": "application/json" };
+async function request(path, { method = "GET", body, auth = true, responseType = "json" } = {}) {
+  const binaryBody = typeof Blob !== "undefined" && body instanceof Blob;
+  const headers = binaryBody ? {} : { "Content-Type": "application/json" };
   if (auth) {
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -20,12 +21,14 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   const res = await fetch(`/api${path}`, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? (binaryBody ? body : JSON.stringify(body)) : undefined,
   });
 
   if (res.status === 204) return null;
 
-  const data = await res.json().catch(() => ({}));
+  const data = responseType === "blob" && res.ok
+    ? await res.blob()
+    : await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && auth) {
       // Token expired or was revoked: drop it and let AuthContext send the user to /login.
@@ -59,6 +62,9 @@ export const api = {
   getSession: (id) => request(`/sessions/${id}`),
   submitAnswer: (id, answerText, inputMode) =>
     request(`/sessions/${id}/answer`, { method: "POST", body: { answerText, inputMode } }),
+  speechStatus: () => request("/speech/status"),
+  transcribeAudio: (audio) => request("/speech/transcribe", { method: "POST", body: audio }),
+  synthesizeSpeech: (text) => request("/speech/synthesize", { method: "POST", body: { text }, responseType: "blob" }),
   finishSession: (id) => request(`/sessions/${id}/finish`, { method: "POST" }),
   getFeedback: (id) => request(`/sessions/${id}/feedback`),
   deleteSession: (id) => request(`/sessions/${id}`, { method: "DELETE" }),

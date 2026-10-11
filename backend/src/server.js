@@ -6,6 +6,7 @@ const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const scenarioRoutes = require("./routes/scenarios");
 const sessionRoutes = require("./routes/sessions");
+const speechRoutes = require("./routes/speech");
 const progressRoutes = require("./routes/progress");
 const { seedTestAccount } = require("./db/seed");
 const { purgeStaleSessions } = require("./services/sessionService");
@@ -38,11 +39,14 @@ app.use("/api/auth/register", authLimiter);
 
 // Each chat message can be a paid/quota-limited model call, so cap them per IP.
 app.post("/api/sessions/:id/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
+app.post("/api/speech/transcribe", rateLimit({ windowMs: 60 * 60 * 1000, max: 30, message: "speech transcription limit reached, try again later" }));
+app.post("/api/speech/synthesize", rateLimit({ windowMs: 60 * 1000, max: 10, message: "speech synthesis limit reached, try again shortly" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/scenarios", scenarioRoutes);
 app.use("/api/sessions", sessionRoutes);
+app.use("/api/speech", speechRoutes);
 app.use("/api/progress", progressRoutes);
 
 app.use((req, res) => {

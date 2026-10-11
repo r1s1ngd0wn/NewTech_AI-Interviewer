@@ -73,6 +73,7 @@ and account deletion/export.
 | `TRUST_PROXY` | Number of reverse proxies in front (1 with the bundled nginx) so rate limiting sees real client IPs |
 | `DB_PATH` | Alternative SQLite path, or `:memory:` |
 | `GEMINI_API_KEY` | Optional. Enables Gemini for chat replies and interviewer reactions |
+| `GROQ_API_KEY` | Optional. Enables Groq Whisper cloud transcription and Orpheus cloud voice |
 | `GEMINI_MODEL` | Gemini model name (default `gemini-flash-latest`) |
 | `LLM_TIMEOUT_MS` | Per-call timeout for the model (default 15000; interviewer reactions use 8000) |
 | `GEMINI_THINKING_BUDGET` | `0` (default) switches reasoning off for speed; `default` leaves it to the model |
@@ -122,6 +123,10 @@ Without a key everything keeps using the scripted replies. With one:
 - **Swapping to a local model**: `backend/src/services/llmService.js` is the only file that talks to
   a provider. Keep its `generate({ system, messages })` contract and point it at Ollama or
   llama.cpp.
+
+## Optional: cloud speech (Groq)
+
+Set `GROQ_API_KEY` in `backend/.env` to send recorded answers to Groq's `whisper-large-v3-turbo` model and have interviewer prompts spoken by `canopylabs/orpheus-v1-english`. Groq Orpheus requires accepting its model terms in the [Groq Playground](https://console.groq.com/playground?model=canopylabs%2Forpheus-v1-english); if unavailable or a prompt exceeds its 200-character limit, the app falls back to the browser voice. The free plan currently limits Orpheus to 100 requests per day. Audio is uploaded after the learner stops recording, so the transcript appears after processing instead of updating live. Recordings are sent to Groq for transcription; see [Groq's data policy](https://console.groq.com/docs/your-data) before using private interview audio.
 
 ## Optional: a local model (LM Studio, Ollama, llama.cpp)
 
