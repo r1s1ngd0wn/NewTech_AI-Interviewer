@@ -104,8 +104,9 @@ img {
   padding: 0 var(--spacing-32);
 }
 
+/* padding-block, not the shorthand: pages also have .container, whose side padding must survive. */
 .page {
-  padding: var(--spacing-48) 0 var(--section-gap);
+  padding-block: var(--spacing-48) var(--section-gap);
 }
 
 .skip-link {
