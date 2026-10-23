@@ -1,4 +1,4 @@
-process.env.DB_PATH = ":memory:";
+process.env.STORE_BACKEND = "memory";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -43,13 +43,13 @@ function localOk(content) {
 }
 
 let counter = 0;
-function scoredSession(scenarioId = SCENARIO_ID) {
+async function scoredSession(scenarioId = SCENARIO_ID) {
   counter += 1;
-  const { user } = auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "LLM Tester" });
-  const { session } = sessions.startSession(user.id, scenarioId);
+  const { user } = await auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "LLM Tester" });
+  const { session } = await sessions.startSession(user.id, scenarioId);
   const total = scenarios.find((s) => s.id === scenarioId).questions.length;
-  for (let i = 0; i < total; i++) sessions.submitAnswer(user.id, session.id, ANSWER);
-  sessions.finishSession(user.id, session.id);
+  for (let i = 0; i < total; i++) await sessions.submitAnswer(user.id, session.id, ANSWER);
+  await sessions.finishSession(user.id, session.id);
   return { userId: user.id, sessionId: session.id };
 }
 
@@ -107,7 +107,7 @@ test("empty and blocked answers are errors", async () => {
 });
 
 test("chat uses Gemini when enabled and grounds the prompt in the transcript and final scores", async () => {
-  const { userId, sessionId } = scoredSession();
+  const { userId, sessionId } = await scoredSession();
   enable();
   stubGemini(() => geminiOk("Your relevance was the weakest area."));
   const reply = (await chat.postMessage(userId, sessionId, "what went wrong?")).at(-1);
@@ -126,7 +126,7 @@ test("chat uses Gemini when enabled and grounds the prompt in the transcript and
 });
 
 test("chat falls back to scripted answers and says why when Gemini fails", async () => {
-  const { userId, sessionId } = scoredSession();
+  const { userId, sessionId } = await scoredSession();
   enable();
   stubGemini(() => ({ ok: false, status: 429, json: async () => ({ error: { message: "quota exceeded" } }) }));
   const reply = (await chat.postMessage(userId, sessionId, "tell me about my strengths")).at(-1);
@@ -138,8 +138,8 @@ test("chat falls back to scripted answers and says why when Gemini fails", async
 
 test("interviewer reaction comes from Gemini but the next question stays from the scenario", async () => {
   counter += 1;
-  const { user } = auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
-  const { session } = sessions.startSession(user.id, SCENARIO_ID);
+  const { user } = await auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
+  const { session } = await sessions.startSession(user.id, SCENARIO_ID);
   enable();
   stubGemini(() => geminiOk("Thanks, that background is a good fit for the team."));
   const { next } = await sessions.answerTurn(user.id, session.id, ANSWER);
@@ -151,8 +151,8 @@ test("interviewer reaction comes from Gemini but the next question stays from th
 
 test("a generated reaction that asks a question is rejected in favour of the scripted one", async () => {
   counter += 1;
-  const { user } = auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
-  const { session } = sessions.startSession(user.id, SCENARIO_ID);
+  const { user } = await auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
+  const { session } = await sessions.startSession(user.id, SCENARIO_ID);
   enable();
   stubGemini(() => geminiOk("Interesting. Can you tell me more about that?"));
   const { next } = await sessions.answerTurn(user.id, session.id, ANSWER);
@@ -164,8 +164,8 @@ test("a generated reaction that asks a question is rejected in favour of the scr
 
 test("answerTurn behaves exactly like submitAnswer when the LLM is off", async () => {
   counter += 1;
-  const { user } = auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
-  const { session } = sessions.startSession(user.id, SCENARIO_ID);
+  const { user } = await auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
+  const { session } = await sessions.startSession(user.id, SCENARIO_ID);
   let fetched = false;
   global.fetch = async () => {
     fetched = true;
@@ -179,7 +179,7 @@ test("answerTurn behaves exactly like submitAnswer when the LLM is off", async (
 const WEB = scenarios.find((s) => s.id === "scn_swe_junior_web");
 
 test("the prompt carries each question's key points and forbids outside knowledge", async () => {
-  const { userId, sessionId } = scoredSession(WEB.id);
+  const { userId, sessionId } = await scoredSession(WEB.id);
   enable();
   stubGemini(() => geminiOk("You covered the URL point but not the request body."));
   await chat.postMessage(userId, sessionId, "what did I miss on question 1?");
@@ -193,7 +193,7 @@ test("the prompt carries each question's key points and forbids outside knowledg
 });
 
 test("questions without key points are marked so the model does not improvise", async () => {
-  const { userId, sessionId } = scoredSession();
+  const { userId, sessionId } = await scoredSession();
   enable();
   stubGemini(() => geminiOk("ok"));
   await chat.postMessage(userId, sessionId, "hi");
@@ -211,7 +211,7 @@ test("quotes are checked against the transcript, question and key points", () =>
 });
 
 test("a reply with an invented quote is retried once with the problem pointed out", async () => {
-  const { userId, sessionId } = scoredSession(WEB.id);
+  const { userId, sessionId } = await scoredSession(WEB.id);
   enable();
   let n = 0;
   stubGemini(() => geminiOk(++n === 1 ? 'You said "I always use PUT for everything" which is risky.' : "You gave a short answer with no examples."));
@@ -225,7 +225,7 @@ test("a reply with an invented quote is retried once with the problem pointed ou
 });
 
 test("a model that keeps inventing quotes is replaced by the data-only scripted answer", async () => {
-  const { userId, sessionId } = scoredSession(WEB.id);
+  const { userId, sessionId } = await scoredSession(WEB.id);
   enable();
   stubGemini(() => geminiOk('You said "I deployed it on a spaceship yesterday" earlier.'));
   const reply = (await chat.postMessage(userId, sessionId, "what did I miss on question 1?")).at(-1);
@@ -237,7 +237,7 @@ test("a model that keeps inventing quotes is replaced by the data-only scripted 
 });
 
 test("the scripted answer to 'what did I miss' is the question bank's key points", async () => {
-  const { userId, sessionId } = scoredSession(WEB.id);
+  const { userId, sessionId } = await scoredSession(WEB.id);
   const one = (await chat.postMessage(userId, sessionId, "what did I miss on the second question")).at(-1).text;
   assert.ok(one.includes(WEB.questions[1].referenceAnswer));
   assert.equal(one.includes(WEB.questions[0].referenceAnswer), false);
@@ -246,7 +246,7 @@ test("the scripted answer to 'what did I miss' is the question bank's key points
 });
 
 test("scenarios without key points say so instead of guessing", async () => {
-  const { userId, sessionId } = scoredSession();
+  const { userId, sessionId } = await scoredSession();
   const reply = (await chat.postMessage(userId, sessionId, "what did I miss?")).at(-1).text;
   assert.match(reply, /no reference answer/);
 });
@@ -287,8 +287,8 @@ test("other 400 errors are not retried", async () => {
 
 test("LLM_REACTIONS=off keeps the interviewer scripted without any model call", async () => {
   counter += 1;
-  const { user } = auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
-  const { session } = sessions.startSession(user.id, SCENARIO_ID);
+  const { user } = await auth.register({ email: `llm${counter}@test.dev`, password: "secret1", name: "R" });
+  const { session } = await sessions.startSession(user.id, SCENARIO_ID);
   enable();
   process.env.LLM_REACTIONS = "off";
   stubGemini(() => geminiOk("should not be used"));
@@ -385,7 +385,7 @@ test("local: server errors and empty answers are errors", async () => {
 });
 
 test("local: chat replies are marked as coming from the local model", async () => {
-  const { userId, sessionId } = scoredSession();
+  const { userId, sessionId } = await scoredSession();
   enableLocal({ LOCAL_LLM_MODEL: "gemma-4" });
   stubGemini(() => localOk("Your relevance was the weakest area."));
   const reply = (await chat.postMessage(userId, sessionId, "what went wrong?")).at(-1);
@@ -400,11 +400,61 @@ test("em and en dashes in model output become plain hyphens", async () => {
 });
 
 test("the chat prompt tells the model why fluency is zero when answers were typed", async () => {
-  const { userId, sessionId } = scoredSession();
+  const { userId, sessionId } = await scoredSession();
   enable();
   stubGemini(() => geminiOk("ok"));
   await chat.postMessage(userId, sessionId, "why is my fluency so low?");
   const prompt = calls[0].body.systemInstruction.parts[0].text;
   assert.match(prompt, /Answer input: 0 spoken, 4 typed/);
   assert.match(prompt, /every typed answer scored 0/);
+});
+
+test("SSE parser handles events split across network chunks", async () => {
+  async function* bytes() {
+    for (const piece of ["data: {\"a\":1}\r", "\n\r", "\ndata: [DONE]\n\n"]) yield Buffer.from(piece);
+  }
+  const events = [];
+  for await (const event of llm.parseSse(bytes())) events.push(event);
+  assert.deepEqual(events, ['{"a":1}', "[DONE]"]);
+});
+
+test("Gemini streaming uses the same thinking budget as non-streaming generation", async () => {
+  enable();
+  stubGemini(() => ({ ok: true, status: 200, body: (async function* () {
+    yield Buffer.from('data: {"candidates":[{"content":{"parts":[{"text":"OK"}]}}]}\n\n');
+  })() }));
+  const tokens = [];
+  for await (const token of llm.generateStream({ system: "brief", messages: [{ role: "user", text: "hi" }] })) {
+    tokens.push(token);
+  }
+  assert.equal(tokens.join(""), "OK");
+  assert.deepEqual(calls[0].body.generationConfig.thinkingConfig, { thinkingBudget: 0 });
+});
+
+test("local model streams visible tokens without inline reasoning", async () => {
+  enableLocal({ LOCAL_LLM_MODEL: "gemma-4" });
+  stubGemini(() => ({
+    ok: true, status: 200,
+    body: (async function* () {
+      for (const piece of [
+        'data: {"choices":[{"delta":{"content":"<thi"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"nk>private</think>Hello "}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"there"}}]}\n\n',
+        "data: [DONE]\n\n",
+      ]) yield Buffer.from(piece);
+    })(),
+  }));
+  const tokens = [];
+  for await (const token of llm.generateStream({ system: "s", messages: [{ role: "user", text: "hi" }] })) tokens.push(token);
+  assert.equal(tokens.join(""), "Hello there");
+  assert.equal(calls[0].body.stream, true);
+});
+
+test("scripted chat also completes through the streaming service", async () => {
+  const { userId, sessionId } = await scoredSession();
+  const events = [];
+  const messages = await chat.streamMessage(userId, sessionId, "hello", (event) => events.push(event));
+  assert.equal(events[0].type, "token");
+  assert.equal(messages.at(-1).source, "scripted");
+  assert.equal(events[0].text, messages.at(-1).text);
 });

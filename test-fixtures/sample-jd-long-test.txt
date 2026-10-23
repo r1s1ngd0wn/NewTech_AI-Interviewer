@@ -1,0 +1,11 @@
+TEST JOB DESCRIPTION - fictional company
+
+Company: Sao Khue Labs
+Open position: Junior Backend Developer
+Location: Da Nang, hybrid. The team meets in person every Tuesday.
+
+Requirements: At least one year of experience with Node.js, Express, REST APIs and PostgreSQL. Candidates should be comfortable reviewing pull requests and explaining database trade-offs.
+
+Interview focus: API design, teamwork, and safe handling of retry requests.
+
+This is synthetic test data, not a real vacancy.

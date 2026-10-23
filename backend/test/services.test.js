@@ -1,4 +1,4 @@
-process.env.DB_PATH = ":memory:";
+process.env.STORE_BACKEND = "memory";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -14,55 +14,67 @@ const SCENARIO_ID = "scn_swe_junior_behavioral";
 const ANSWER = "I have experience in this role and a project I am proud of because of the result.";
 
 let counter = 0;
-function newUser() {
+async function newUser() {
   counter += 1;
   return auth.register({ email: `user${counter}@test.dev`, password: "secret1", name: `User ${counter}` });
 }
 
-function scoredSession(userId) {
-  const { session } = sessions.startSession(userId, SCENARIO_ID);
-  for (let i = 0; i < 4; i++) sessions.submitAnswer(userId, session.id, ANSWER);
-  sessions.finishSession(userId, session.id);
+async function scoredSession(userId) {
+  const { session } = await sessions.startSession(userId, SCENARIO_ID);
+  for (let i = 0; i < 4; i++) await sessions.submitAnswer(userId, session.id, ANSWER);
+  await sessions.finishSession(userId, session.id);
   return session.id;
 }
 
-test("login without a password is a 400, not a crash", () => {
-  newUser();
-  assert.throws(() => auth.login({ email: "user1@test.dev" }), (err) => err.status === 400);
-  assert.throws(() => auth.login({ email: "user1@test.dev", password: 123456 }), (err) => err.status === 400);
+test("login without a password is a 400, not a crash", async () => {
+  await newUser();
+  await assert.rejects(auth.login({ email: "user1@test.dev" }), (err) => err.status === 400);
+  await assert.rejects(auth.login({ email: "user1@test.dev", password: 123456 }), (err) => err.status === 400);
 });
 
-test("wrong password is a 401 and correct password works", () => {
-  assert.throws(() => auth.login({ email: "user1@test.dev", password: "wrong-one" }), (err) => err.status === 401);
-  assert.ok(auth.login({ email: "user1@test.dev", password: "secret1" }).token);
+test("wrong password is a 401 and correct password works", async () => {
+  await assert.rejects(auth.login({ email: "user1@test.dev", password: "wrong-one" }), (err) => err.status === 401);
+  assert.ok((await auth.login({ email: "user1@test.dev", password: "secret1" })).token);
 });
 
-test("register validates email, name and password", () => {
-  assert.throws(() => auth.register({ email: "nope", password: "secret1", name: "A" }), (e) => e.status === 400);
-  assert.throws(() => auth.register({ email: "a@b.dev", password: "123", name: "A" }), (e) => e.status === 400);
-  assert.throws(() => auth.register({ email: "a@b.dev", password: "secret1", name: "  " }), (e) => e.status === 400);
+test("register validates email, name and password", async () => {
+  await assert.rejects(auth.register({ email: "nope", password: "secret1", name: "A" }), (e) => e.status === 400);
+  await assert.rejects(auth.register({ email: "a@b.dev", password: "123", name: "A" }), (e) => e.status === 400);
+  await assert.rejects(auth.register({ email: "a@b.dev", password: "secret1", name: "  " }), (e) => e.status === 400);
 });
 
-test("expired tokens are rejected and removed; revoked tokens stop working", () => {
-  const { token } = newUser();
-  assert.ok(auth.getUserFromToken(token));
-  const record = store.tokens.get(token);
-  store.tokens.set(token, { ...record, expiresAt: Date.now() - 1 });
-  assert.equal(auth.getUserFromToken(token), null);
-  assert.equal(store.tokens.has(token), false);
-
-  const second = newUser();
-  auth.revokeToken(second.token);
-  assert.equal(auth.getUserFromToken(second.token), null);
+test("concurrent registration cannot replace another account's email mapping", async () => {
+  const email = `race${++counter}@test.dev`;
+  const results = await Promise.allSettled([
+    auth.register({ email, password: "secret1", name: "First" }),
+    auth.register({ email, password: "secret1", name: "Second" }),
+  ]);
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(results.find((result) => result.status === "rejected").reason.status, 409);
+  const winner = results.find((result) => result.status === "fulfilled").value.user;
+  assert.equal(await store.usersByEmail.get(email), winner.id);
 });
 
-test("profile completes only when industry, role and level are all set", () => {
-  const { user } = newUser();
-  let updated = auth.updateProfile(user.id, { targetIndustry: "Technology", experienceLevel: "Junior" });
+test("expired tokens are rejected and removed; revoked tokens stop working", async () => {
+  const { token } = await newUser();
+  assert.ok(await auth.getUserFromToken(token));
+  const record = await store.tokens.get(token);
+  await store.tokens.set(token, { ...record, expiresAt: Date.now() - 1 });
+  assert.equal(await auth.getUserFromToken(token), null);
+  assert.equal(await store.tokens.has(token), false);
+
+  const second = await newUser();
+  await auth.revokeToken(second.token);
+  assert.equal(await auth.getUserFromToken(second.token), null);
+});
+
+test("profile completes only when industry, role and level are all set", async () => {
+  const { user } = await newUser();
+  let updated = await auth.updateProfile(user.id, { targetIndustry: "Technology", experienceLevel: "Junior" });
   assert.equal(updated.profile.onboardingComplete, false);
-  updated = auth.updateProfile(user.id, { targetRole: "Frontend Developer" });
+  updated = await auth.updateProfile(user.id, { targetRole: "Frontend Developer" });
   assert.equal(updated.profile.onboardingComplete, true);
-  assert.throws(() => auth.updateProfile(user.id, { name: "" }), (e) => e.status === 400);
+  await assert.rejects(auth.updateProfile(user.id, { name: "" }), (e) => e.status === 400);
 });
 
 test("public scenario hides questions and scoring keywords", () => {
@@ -72,45 +84,45 @@ test("public scenario hides questions and scoring keywords", () => {
   assert.ok(pub.questionCount > 0);
 });
 
-test("reopening a scenario before answering reuses the untouched session", () => {
-  const { user } = newUser();
-  const a = sessions.startSession(user.id, SCENARIO_ID);
-  const b = sessions.startSession(user.id, SCENARIO_ID);
+test("reopening a scenario before answering reuses the untouched session", async () => {
+  const { user } = await newUser();
+  const a = await sessions.startSession(user.id, SCENARIO_ID);
+  const b = await sessions.startSession(user.id, SCENARIO_ID);
   assert.equal(a.session.id, b.session.id);
-  sessions.submitAnswer(user.id, a.session.id, ANSWER);
-  const c = sessions.startSession(user.id, SCENARIO_ID);
+  await sessions.submitAnswer(user.id, a.session.id, ANSWER);
+  const c = await sessions.startSession(user.id, SCENARIO_ID);
   assert.notEqual(c.session.id, a.session.id);
 });
 
-test("answers longer than the limit are rejected", () => {
-  const { user } = newUser();
-  const { session } = sessions.startSession(user.id, SCENARIO_ID);
-  assert.throws(() => sessions.submitAnswer(user.id, session.id, "x".repeat(4001)), (e) => e.status === 400);
-  assert.throws(() => sessions.submitAnswer(user.id, session.id, 42), (e) => e.status === 400);
+test("answers longer than the limit are rejected", async () => {
+  const { user } = await newUser();
+  const { session } = await sessions.startSession(user.id, SCENARIO_ID);
+  await assert.rejects(sessions.submitAnswer(user.id, session.id, "x".repeat(4001)), (e) => e.status === 400);
+  await assert.rejects(sessions.submitAnswer(user.id, session.id, 42), (e) => e.status === 400);
 });
 
-test("ending early scores only the answered questions", () => {
-  const { user } = newUser();
-  const { session } = sessions.startSession(user.id, SCENARIO_ID);
-  sessions.submitAnswer(user.id, session.id, ANSWER);
-  const feedback = sessions.finishSession(user.id, session.id);
+test("ending early scores only the answered questions", async () => {
+  const { user } = await newUser();
+  const { session } = await sessions.startSession(user.id, SCENARIO_ID);
+  await sessions.submitAnswer(user.id, session.id, ANSWER);
+  const feedback = await sessions.finishSession(user.id, session.id);
   assert.equal(feedback.questionsAnswered, 1);
   assert.equal(feedback.questionsTotal, 4);
 });
 
 test("deleting a session also deletes its chat", async () => {
-  const { user } = newUser();
-  const sessionId = scoredSession(user.id);
+  const { user } = await newUser();
+  const sessionId = await scoredSession(user.id);
   await chat.postMessage(user.id, sessionId, "what should I improve?");
-  assert.equal(store.sessionChats.has(sessionId), true);
-  sessions.deleteSession(user.id, sessionId);
-  assert.equal(store.sessionChats.has(sessionId), false);
-  assert.equal(store.feedbacks.has(sessionId), false);
+  assert.equal(await store.sessionChats.has(sessionId), true);
+  await sessions.deleteSession(user.id, sessionId);
+  assert.equal(await store.sessionChats.has(sessionId), false);
+  assert.equal(await store.feedbacks.has(sessionId), false);
 });
 
 test("chat replies to plural keywords and caps message length", async () => {
-  const { user } = newUser();
-  const sessionId = scoredSession(user.id);
+  const { user } = await newUser();
+  const sessionId = await scoredSession(user.id);
   const reply = (await chat.postMessage(user.id, sessionId, "tell me about my strengths")).at(-1);
   assert.match(reply.text, /strongest|solid/);
   assert.equal(reply.source, "scripted");
@@ -118,46 +130,47 @@ test("chat replies to plural keywords and caps message length", async () => {
   await assert.rejects(chat.postMessage(user.id, sessionId, "   "), (e) => e.status === 400);
 });
 
-test("stale unfinished sessions are purged but scored ones are kept", () => {
-  const { user } = newUser();
-  const scoredId = scoredSession(user.id);
-  const { session } = sessions.startSession(user.id, "scn_swe_midlevel_technical");
-  const stored = store.sessions.get(session.id);
+test("stale unfinished sessions are purged but scored ones are kept", async () => {
+  const { user } = await newUser();
+  const scoredId = await scoredSession(user.id);
+  const { session } = await sessions.startSession(user.id, "scn_swe_midlevel_technical");
+  const stored = await store.sessions.get(session.id);
   stored.startedAt = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
-  store.sessions.set(session.id, stored);
+  await store.sessions.set(session.id, stored);
 
-  assert.ok(sessions.purgeStaleSessions() >= 1);
-  assert.equal(store.sessions.has(session.id), false);
-  assert.equal(store.sessions.has(scoredId), true);
+  assert.ok((await sessions.purgeStaleSessions()) >= 1);
+  assert.equal(await store.sessions.has(session.id), false);
+  assert.equal(await store.sessions.has(scoredId), true);
 });
 
 test("account deletion removes the user, sessions, chats and tokens", async () => {
-  const { user, token } = newUser();
-  const sessionId = scoredSession(user.id);
+  const { user, token } = await newUser();
+  const sessionId = await scoredSession(user.id);
   await chat.postMessage(user.id, sessionId, "hello");
-  const exported = accounts.exportData(user.id);
+  const exported = await accounts.exportData(user.id);
   assert.equal(exported.sessions.length, 1);
+  assert.deepEqual(exported.sessions[0].documents, []);
   assert.equal(exported.user.passwordHash, undefined);
 
-  accounts.deleteAccount(user.id);
-  assert.equal(store.users.has(user.id), false);
-  assert.equal(store.usersByEmail.has(user.email), false);
-  assert.equal(store.sessions.has(sessionId), false);
-  assert.equal(store.sessionChats.has(sessionId), false);
-  assert.equal(store.tokens.has(token), false);
+  await accounts.deleteAccount(user.id);
+  assert.equal(await store.users.has(user.id), false);
+  assert.equal(await store.usersByEmail.has(user.email), false);
+  assert.equal(await store.sessions.has(sessionId), false);
+  assert.equal(await store.sessionChats.has(sessionId), false);
+  assert.equal(await store.tokens.has(token), false);
 });
 
-test("the input mode is stored per answer and only 'voice' counts as spoken", () => {
-  const { user } = newUser();
-  const { session } = sessions.startSession(user.id, SCENARIO_ID);
-  sessions.submitAnswer(user.id, session.id, ANSWER, "voice");
-  sessions.submitAnswer(user.id, session.id, ANSWER, "text");
-  sessions.submitAnswer(user.id, session.id, ANSWER);
-  sessions.submitAnswer(user.id, session.id, ANSWER, "something else");
-  const stored = store.sessions.get(session.id);
+test("the input mode is stored per answer and only 'voice' counts as spoken", async () => {
+  const { user } = await newUser();
+  const { session } = await sessions.startSession(user.id, SCENARIO_ID);
+  await sessions.submitAnswer(user.id, session.id, ANSWER, "voice");
+  await sessions.submitAnswer(user.id, session.id, ANSWER, "text");
+  await sessions.submitAnswer(user.id, session.id, ANSWER);
+  await sessions.submitAnswer(user.id, session.id, ANSWER, "something else");
+  const stored = await store.sessions.get(session.id);
   assert.deepEqual(stored.turns.map((t) => t.inputMode), ["voice", "text", "text", "text"]);
 
-  const feedback = sessions.finishSession(user.id, session.id);
+  const feedback = await sessions.finishSession(user.id, session.id);
   assert.equal(feedback.spokenAnswers, 1);
   assert.equal(feedback.typedAnswers, 3);
 });

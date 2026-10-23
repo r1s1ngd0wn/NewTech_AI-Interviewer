@@ -104,8 +104,9 @@ img {
   padding: 0 var(--spacing-32);
 }
 
+/* padding-block, not the shorthand: pages also have .container, whose side padding must survive. */
 .page {
-  padding: var(--spacing-48) 0 var(--section-gap);
+  padding-block: var(--spacing-48) var(--section-gap);
 }
 
 .skip-link {
@@ -178,10 +179,26 @@ img {
   font-size: var(--text-body-sm);
 }
 
-@media (max-width: 760px) {
-  .nav-links {
-    display: none;
+@media (max-width: 900px) {
+  .site-header .container {
+    height: auto;
+    min-height: 72px;
+    flex-wrap: wrap;
+    row-gap: var(--spacing-8);
+    padding-top: var(--spacing-8);
+    padding-bottom: var(--spacing-8);
   }
+  .nav-links {
+    order: 3;
+    position: static;
+    transform: none;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: var(--spacing-8);
+  }
+  .nav-user-name { display: none; }
+  .nav-pill { padding: var(--spacing-8) var(--spacing-12); }
 }
 
 /* --- Buttons ------------------------------------------------------------*/
@@ -639,6 +656,85 @@ p {
   margin-top: calc(var(--spacing-8) * -1);
   margin-bottom: var(--spacing-16);
 }
+.coach-page { min-height: calc(100vh - 8rem); display: flex; flex-direction: column; }
+.coach-toolbar { margin-bottom: var(--spacing-16); }
+.coach-log { display: flex; flex-direction: column; gap: var(--spacing-12); flex: 1; min-height: 18rem; max-height: 58vh; overflow-y: auto; padding: var(--spacing-12) var(--spacing-8) var(--spacing-24) 0; border-top: 1px solid var(--color-hairline); }
+.coach-page .chat-composer { margin-top: var(--spacing-12); }
+.document-upload { display: flex; flex-wrap: wrap; align-items: end; gap: var(--spacing-12); margin: var(--spacing-24) 0 var(--spacing-8); }
+.document-upload label { display: grid; gap: var(--spacing-8); min-width: 0; font-size: var(--text-body-sm); }
+.document-upload select, .document-upload input { font: inherit; max-width: 100%; }
+.document-library-list { list-style: none; padding: 0; margin: var(--spacing-24) 0; border-top: 1px solid var(--color-hairline); }
+.document-library-list li { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-12); padding: var(--spacing-12) 0; border-bottom: 1px solid var(--color-hairline); }
+.document-kind { font-size: var(--text-caption); font-weight: 700; min-width: 3rem; }
+.document-title { border: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; cursor: pointer; flex: 1; min-width: 12rem; overflow-wrap: anywhere; }
+.document-library-list time { color: var(--color-smoke); font-size: var(--text-caption); }
+.document-preview { border-top: 1px solid var(--color-hairline); padding-top: var(--spacing-16); }
+.document-preview-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-12); }
+.document-preview h2 { font-size: 1.2rem; overflow-wrap: anywhere; }
+.document-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow-y: auto; font: inherit; }
+.question-context {
+  margin-top: var(--spacing-12);
+  color: var(--color-smoke);
+  font-size: var(--text-body-sm);
+}
+.question-context summary {
+  cursor: pointer;
+}
+.question-context p {
+  max-width: 52rem;
+  margin: var(--spacing-8) 0 0;
+  overflow-wrap: anywhere;
+}
+.interview-prep {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+  max-width: 48rem;
+}
+.interview-prep h2,
+.interview-prep p {
+  margin: 0;
+}
+.interview-prep .chat-document-list,
+.interview-prep .chat-document-form {
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .interview-prep .chat-document-form {
+    flex-wrap: wrap;
+  }
+}
+.chat-documents {
+  border-top: 1px solid var(--color-hairline);
+  border-bottom: 1px solid var(--color-hairline);
+  padding: var(--spacing-12) 0;
+  margin-bottom: var(--spacing-16);
+}
+.chat-documents h4 {
+  margin: 0 0 var(--spacing-8);
+  font-size: var(--text-body-sm);
+}
+.chat-document-list {
+  list-style: none;
+  margin: 0 0 var(--spacing-8);
+  padding: 0;
+}
+.chat-document-list li,
+.chat-document-form {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+.chat-document-list li span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chat-document-form input {
+  flex: 1;
+  min-width: 0;
+}
 .chat-log {
   display: flex;
   flex-direction: column;
@@ -680,6 +776,7 @@ p {
 }
 .chat-composer input {
   flex: 1;
+  min-width: 0;
   border: 1px solid var(--color-slate);
   border-radius: var(--radius-card);
   padding: var(--spacing-12) var(--spacing-16);

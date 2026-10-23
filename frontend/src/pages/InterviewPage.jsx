@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { useSpeech } from "../hooks/useSpeech.js";
-import { MicIcon, StopIcon, AlertIcon } from "../components/icons.jsx";
+import { MicIcon, StopIcon, AlertIcon, TrashIcon } from "../components/icons.jsx";
 import { usePageMeta } from "../hooks/usePageMeta.js";
 
 const MAX_ANSWER_LENGTH = 4000;
@@ -22,6 +22,9 @@ export default function InterviewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState("loading"); // loading | active | ready-to-finish | finishing | error
   const [error, setError] = useState("");
+  const [documents, setDocuments] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [busyDocument, setBusyDocument] = useState(false);
   const hasSpokenRef = useRef(null);
   const draftBaseRef = useRef("");
   // True once the microphone has produced text for the current answer. Typed answers are sent as
@@ -44,11 +47,17 @@ export default function InterviewPage() {
         if (cancelled) return;
         setScenario(scenario);
         setSessionId(session.id);
-        setCurrentQuestion(question);
-        setProgressIndex(question.index);
+        setDocuments((await api.listSessionDocuments(session.id)).documents);
+        if (cancelled) return;
         setTotal(question.total);
-        setLog([{ role: "question", text: question.text }]);
-        setStatus("active");
+        if (session.preparedAt) {
+          setCurrentQuestion(question);
+          setProgressIndex(question.index);
+          setLog([{ role: "question", text: question.text }]);
+          setStatus("active");
+        } else {
+          setStatus("preparing");
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err.message);
@@ -91,6 +100,53 @@ export default function InterviewPage() {
     speech.startRecording();
   }
 
+  async function handleUpload(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    if (!selectedFile || busyDocument) return;
+    setBusyDocument(true);
+    setError("");
+    try {
+      await api.uploadSessionDocument(sessionId, selectedFile);
+      setDocuments((await api.listSessionDocuments(sessionId)).documents);
+      setSelectedFile(null);
+      form.reset();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyDocument(false);
+    }
+  }
+
+  async function handleDeleteDocument(documentId) {
+    setBusyDocument(true);
+    setError("");
+    try {
+      await api.deleteSessionDocument(sessionId, documentId);
+      setDocuments((current) => current.filter((item) => item.id !== documentId));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyDocument(false);
+    }
+  }
+
+  async function handleStartInterview() {
+    setStatus("starting");
+    setError("");
+    try {
+      const { question } = await api.prepareSession(sessionId);
+      setCurrentQuestion(question);
+      setProgressIndex(question.index);
+      setTotal(question.total);
+      setLog([{ role: "question", text: question.text }]);
+      setStatus("active");
+    } catch (err) {
+      setError(err.message);
+      setStatus("preparing");
+    }
+  }
+
   async function handleSubmitAnswer() {
     const answerText = draft.trim();
     if (!answerText || submitting) return;
@@ -117,7 +173,8 @@ export default function InterviewPage() {
         setCurrentQuestion(null);
         setProgressIndex(total);
       } else {
-        setCurrentQuestion({ questionId: next.questionId, text: next.text });
+        setCurrentQuestion({ questionId: next.questionId, text: next.text,
+          contextSnippet: next.contextSnippet, sourceLabel: next.sourceLabel });
         setProgressIndex(next.index);
       }
     } catch (err) {
@@ -173,6 +230,48 @@ export default function InterviewPage() {
     );
   }
 
+  if (status === "preparing" || status === "starting") {
+    return (
+      <div className="page container">
+        <span className="eyebrow">Interview preparation</span>
+        <h1>{scenario?.title}</h1>
+        <div className="card card-pad interview-prep">
+          <h2>Prepare your interview</h2>
+          <p>Upload a CV or job description to add relevant context to the scenario questions. You can also continue without a document.</p>
+          <p className="muted">PDF, DOCX, TXT or Markdown, up to 5 MB. Text-based PDFs only. Uploaded text may be sent to configured AI providers and is stored privately in Supabase. Documents in your <a href="/documents">library</a> are also available here.</p>
+          {documents.length > 0 && (
+            <ul className="chat-document-list">
+              {documents.map((document) => (
+                <li key={document.id}>
+                  <span>{document.filename}</span>
+                  <button type="button" className="btn btn-sm" title={`Delete ${document.filename}`}
+                    aria-label={`Delete ${document.filename}`} disabled={busyDocument || status === "starting"}
+                    onClick={() => handleDeleteDocument(document.id)}>
+                    <TrashIcon width={16} height={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form className="chat-document-form" onSubmit={handleUpload}>
+            <input type="file" accept=".pdf,.docx,.txt,.md" aria-label="Choose a CV or job description"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+              disabled={busyDocument || status === "starting"} />
+            <button type="submit" className="btn btn-secondary btn-sm"
+              disabled={!selectedFile || busyDocument || status === "starting"}>
+              {busyDocument ? "Uploading..." : "Upload"}
+            </button>
+          </form>
+          {error && <div className="form-error" role="alert"><AlertIcon width={16} height={16} />{error}</div>}
+          <button type="button" className="btn btn-primary" onClick={handleStartInterview}
+            disabled={busyDocument || status === "starting"}>
+            {status === "starting" ? "Preparing questions..." : "Start interview"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const percent = total ? Math.round((progressIndex / total) * 100) : 0;
   const tooLong = draft.length > MAX_ANSWER_LENGTH;
 
@@ -210,6 +309,12 @@ export default function InterviewPage() {
                 <strong>Interviewer{speech.isSpeaking ? " (speaking...)" : ""}:</strong>{" "}
                 {currentQuestion?.text}
               </div>
+              {currentQuestion?.contextSnippet && (
+                <details className="question-context">
+                  <summary>Context from {currentQuestion.sourceLabel || "your document"}</summary>
+                  <p>{currentQuestion.contextSnippet}</p>
+                </details>
+              )}
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"

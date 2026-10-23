@@ -8,10 +8,18 @@ services:
       - NODE_ENV=production
       - CORS_ORIGIN=http://localhost:5173
       - TRUST_PROXY=1
+      - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL to the Supabase Postgres connection string}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-}
+      - LOCAL_LLM_URL=${LOCAL_LLM_URL:-}
+      - LOCAL_LLM_MODEL=${LOCAL_LLM_MODEL:-}
+      - LOCAL_EMBEDDING_MODEL=${LOCAL_EMBEDDING_MODEL:-}
       # Uncomment for a demo deployment that should include the seeded test login.
       # - SEED_TEST_ACCOUNT=true
-    volumes:
-      - backend-data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
       interval: 10s
@@ -24,6 +32,3 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-
-volumes:
-  backend-data:

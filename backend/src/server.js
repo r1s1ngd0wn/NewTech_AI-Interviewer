@@ -7,20 +7,14 @@ const userRoutes = require("./routes/users");
 const scenarioRoutes = require("./routes/scenarios");
 const sessionRoutes = require("./routes/sessions");
 const progressRoutes = require("./routes/progress");
+const documentRoutes = require("./routes/documents");
+const coachRoutes = require("./routes/coach");
 const { seedTestAccount } = require("./db/seed");
 const { purgeStaleSessions } = require("./services/sessionService");
+const { checkConnection } = require("./db/postgres");
 const { securityHeaders, rateLimit } = require("./middleware/security");
 
 const isProduction = process.env.NODE_ENV === "production";
-
-// The demo login (see db/seed.js) is created outside production, or when explicitly asked for.
-if (!isProduction || process.env.SEED_TEST_ACCOUNT === "true") {
-  seedTestAccount();
-}
-
-const purged = purgeStaleSessions();
-if (purged) console.log(`Removed ${purged} abandoned interview session(s).`);
-setInterval(purgeStaleSessions, 60 * 60 * 1000).unref();
 
 const app = express();
 
@@ -38,11 +32,16 @@ app.use("/api/auth/register", authLimiter);
 
 // Each chat message can be a paid/quota-limited model call, so cap them per IP.
 app.post("/api/sessions/:id/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
+app.post("/api/sessions/:id/chat/stream", rateLimit({ windowMs: 60 * 1000, max: 20 }));
+app.post("/api/documents", rateLimit({ windowMs: 60 * 1000, max: 10 }));
+app.post("/api/coach/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/scenarios", scenarioRoutes);
 app.use("/api/sessions", sessionRoutes);
+app.use("/api/documents", documentRoutes);
+app.use("/api/coach", coachRoutes);
 app.use("/api/progress", progressRoutes);
 
 app.use((req, res) => {
@@ -60,7 +59,23 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: message });
 });
 
-const port = process.env.PORT || 4000;
-app.listen(port, () => {
-  console.log(`InterviewAI backend listening on http://localhost:${port}`);
+async function start() {
+  if (process.env.STORE_BACKEND === "memory") {
+    if (isProduction) throw new Error("memory store is only for local preview and tests");
+    console.warn("InterviewAI is running in temporary memory preview mode; data will not persist.");
+  } else {
+    await checkConnection();
+  }
+  // The demo login is created outside production, or when explicitly requested.
+  if (!isProduction || process.env.SEED_TEST_ACCOUNT === "true") await seedTestAccount();
+  const purged = await purgeStaleSessions();
+  if (purged) console.log(`Removed ${purged} abandoned interview session(s).`);
+  setInterval(() => purgeStaleSessions().catch(console.error), 60 * 60 * 1000).unref();
+  const port = process.env.PORT || 4000;
+  app.listen(port, () => console.log(`InterviewAI backend listening on http://localhost:${port}`));
+}
+
+start().catch((err) => {
+  console.error("InterviewAI backend could not start:", err.message);
+  process.exitCode = 1;
 });

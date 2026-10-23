@@ -16,7 +16,7 @@ export default function ScenariosPage() {
 
   usePageMeta({
     title: "Scenarios",
-    description: "Browse fixed interview scenarios by industry, seniority, and question type.",
+    description: "Browse interview scenarios by industry, seniority, and question type.",
   });
 
   useEffect(() => {
@@ -53,8 +53,7 @@ export default function ScenariosPage() {
       <span className="eyebrow">Scenario Library</span>
       <h1>Choose an interview scenario</h1>
       <p>
-        Every scenario is a fixed set of questions for one industry, seniority and question type.
-        The interviewer only asks from that list.
+        Choose a scenario, then add your CV or job description before the interview to put its questions in context.
       </p>
 
       <div className="filter-bar">
