@@ -10,6 +10,7 @@
 // logged or included in error messages.
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const aiRequestLog = require("./aiRequestLogService");
 // "gemini-flash-latest" is Google's alias for the current flash model, so the default does not
 // break when a specific version is retired (gemini-2.5-flash already was for new keys).
 const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
@@ -234,13 +235,21 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
 
 // ---- public ----------------------------------------------------------------------------
 
-async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs }) {
+async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs, promptVersion }) {
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
   const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs() };
-  const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
-  // The app never shows em/en dashes; models like to write them.
-  return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
+  const started = Date.now();
+  let outcome = "error";
+  try {
+    const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
+    outcome = "ok";
+    return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
+  } finally {
+    const info = status();
+    await aiRequestLog.logAiRequest({ provider: active, model: info.model, operation: "chat",
+      promptVersion, durationMs: Date.now() - started, status: outcome });
+  }
 }
 
 async function* parseSse(body) {
@@ -300,9 +309,11 @@ function reasoningFilter() {
   };
 }
 
-async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal }) {
+async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, promptVersion }) {
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
+  const started = Date.now();
+  let outcome = "cancelled";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), defaultTimeoutMs());
   if (signal) signal.addEventListener("abort", () => controller.abort(), { once: true });
@@ -356,11 +367,16 @@ async function* generateStream({ system, messages, temperature = 0.2, maxOutputT
     }
     const tail = filter.finish();
     if (tail) yield tail;
+    outcome = "ok";
   } catch (error) {
+    outcome = signal?.aborted ? "cancelled" : "error";
     if (error.name === "AbortError") throw new LlmError("the LLM stream timed out or was cancelled");
     throw error;
   } finally {
     clearTimeout(timeout);
+    const info = status();
+    await aiRequestLog.logAiRequest({ provider: active, model: info.model, operation: "chat_stream",
+      promptVersion, durationMs: Date.now() - started, status: outcome });
   }
 }
 

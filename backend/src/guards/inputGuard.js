@@ -1,5 +1,5 @@
-const INJECTION = /ignore\s+(all\s+|your\s+|the\s+)?(previous|prior|system)\s+instructions|reveal\s+(your\s+|the\s+)?(system prompt|secret|api key)|act as\s+(a\s+|an\s+)?(different|unrestricted|new)\s+assistant|bỏ qua (mọi |các )?(hướng dẫn|chỉ thị)|tiết lộ (system prompt|api key|khóa api)/i;
-const OUT_OF_SCOPE = /\b(weather forecast|stock price|crypto price|write (me )?a recipe|political news|tomorrow's weather|do my homework|solve my assignment)\b|(?:thời tiết|giá cổ phiếu|công thức nấu ăn|tin chính trị|làm bài tập hộ)/i;
+const INJECTION = /ignore\s+(all\s+|your\s+|the\s+)?(previous|prior|system|above)\s+(instructions|rules|prompts?)|(?:disregard|override|forget)\s+(?:all\s+|your\s+|the\s+)?(?:previous|prior|system|above)\s+(?:instructions|rules|prompts?)|(?:reveal|show|print|dump|leak)\s+(?:me\s+)?(?:your\s+|the\s+)?(?:hidden\s+|internal\s+)?(?:system prompt|developer prompt|secret|api key|instructions)|(?:act as|pretend to be|you are now)\s+(?:a\s+|an\s+)?(?:different|unrestricted|new|unfiltered)\s+(?:assistant|model)|bỏ qua (?:mọi |các )?(?:hướng dẫn|chỉ thị|quy tắc)|tiết lộ (?:system prompt|api key|khóa api|hướng dẫn ẩn)/i;
+const OUT_OF_SCOPE = /\b(?:weather|forecast|stock price|crypto price|recipe|political news|sports score|lottery|horoscope|do my homework|solve my assignment)\b|(?:thời tiết|giá cổ phiếu|giá tiền ảo|công thức nấu ăn|tin chính trị|tỉ số bóng đá|xổ số|tử vi|làm bài tập hộ)/i;
 
 function classifyInput(message) {
   if (INJECTION.test(message)) return "injection";

@@ -1,6 +1,7 @@
 const path = require("node:path");
 const { createClient } = require("@supabase/supabase-js");
 const mammoth = require("mammoth");
+const JSZip = require("jszip");
 const { newId } = require("../utils/id");
 const { getPool } = require("../db/postgres");
 const ragService = require("./ragService");
@@ -11,6 +12,11 @@ const { sanitizeSourceText } = require("../guards/inputGuard");
 const BUCKET = "interviewai-private";
 const MAX_PAGES = 20;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_TEXT_CHARS = 100000;
+const MAX_CHUNKS = 40;
+const MAX_USER_DOCUMENTS = 10;
+const MAX_SESSION_DOCUMENTS = 3;
+const MAX_DOCX_EXPANDED_BYTES = 20 * 1024 * 1024;
 let storageClient;
 
 function storage() {
@@ -37,8 +43,53 @@ function fileType(file) {
   throw httpError(400, "upload a PDF, DOCX, TXT or Markdown file (PDFs must contain selectable text)");
 }
 
+function searchableChunks(text) {
+  if (text.length > MAX_TEXT_CHARS) {
+    throw httpError(400, `documents are limited to ${MAX_TEXT_CHARS} extracted characters`);
+  }
+  const chunks = ragService.chunkText(sanitizeSourceText(text), 2000, 200);
+  if (chunks.length > MAX_CHUNKS) {
+    throw httpError(400, `documents are limited to ${MAX_CHUNKS} searchable chunks`);
+  }
+  return chunks;
+}
+
+async function enforceDocumentCount(sql, values, limit) {
+  const result = await getPool().query(sql, values);
+  if (Number(result.rows[0].count) >= limit) {
+    throw httpError(400, `a maximum of ${limit} documents is allowed here`);
+  }
+}
+
+async function insertWithinQuota(lockKey, countSql, countValues, limit, insertSql, insertValues) {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [lockKey]);
+    const count = await client.query(countSql, countValues);
+    if (Number(count.rows[0].count) >= limit) {
+      throw httpError(400, `a maximum of ${limit} documents is allowed here`);
+    }
+    await client.query(insertSql, insertValues);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function extractText(file, contentType) {
   if (contentType.includes("wordprocessingml.document")) {
+    // JSZip reads ZIP entry sizes without expanding document content.
+    const archive = await JSZip.loadAsync(file.buffer);
+    const entries = Object.values(archive.files).filter((entry) => !entry.dir);
+    const expandedBytes = entries.reduce((total, entry) => total + Number(entry._data?.uncompressedSize || 0), 0);
+    if (entries.length > 200 || expandedBytes > MAX_DOCX_EXPANDED_BYTES ||
+        entries.some((entry) => !Number.isSafeInteger(entry._data?.uncompressedSize))) {
+      throw httpError(400, "the DOCX expands beyond the supported document limit");
+    }
     return (await mammoth.extractRawText({ buffer: file.buffer })).value.trim();
   }
   if (contentType !== "application/pdf") return file.buffer.toString("utf8").trim();
@@ -85,6 +136,8 @@ async function uploadDocument(userId, sessionId, file) {
   if (!file?.buffer?.length) throw httpError(400, "file is required");
   if (file.buffer.length > MAX_FILE_BYTES) throw httpError(400, "files are limited to 5 MB");
   if (!embeddingService.config()) throw httpError(503, "configure an embedding model before uploading RAG documents");
+  await enforceDocumentCount("SELECT count(*) FROM interviewai_documents WHERE user_id = $1 AND session_id = $2",
+    [userId, sessionId], MAX_SESSION_DOCUMENTS);
   const contentType = fileType(file);
   let text;
   try {
@@ -94,16 +147,20 @@ async function uploadDocument(userId, sessionId, file) {
     throw httpError(400, "could not read this file; use a text-based PDF, DOCX, TXT or Markdown file");
   }
   if (text.length < 20) throw httpError(400, "the file contains too little searchable text");
+  const contents = searchableChunks(text);
   const id = newId("doc");
   const filename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
   const storagePath = `${userId}/${sessionId}/${id}/${filename}`;
   const { error: uploadError } = await storage().upload(storagePath, file.buffer, { contentType, upsert: false });
   if (uploadError) throw new Error(`Supabase Storage upload failed: ${uploadError.message}`);
   try {
-    await getPool().query(`INSERT INTO interviewai_documents
+    await insertWithinQuota(`session:${userId}:${sessionId}`,
+      "SELECT count(*) FROM interviewai_documents WHERE user_id = $1 AND session_id = $2",
+      [userId, sessionId], MAX_SESSION_DOCUMENTS,
+      `INSERT INTO interviewai_documents
       (id, user_id, session_id, filename, content_type, storage_path) VALUES ($1, $2, $3, $4, $5, $6)`,
       [id, userId, sessionId, filename, contentType, storagePath]);
-    const chunks = ragService.chunkText(sanitizeSourceText(text), 2000, 200)
+    const chunks = contents
       .map((content, index) => ({
         id: `${sessionId}-${id}-${index + 1}`, documentId: id, label: filename, content,
       }));
@@ -156,6 +213,8 @@ async function uploadUserDocument(userId, kind, file) {
   if (!file?.buffer?.length) throw httpError(400, "file is required");
   if (file.buffer.length > MAX_FILE_BYTES) throw httpError(400, "files are limited to 5 MB");
   if (!embeddingService.config()) throw httpError(503, "configure an embedding model before uploading documents");
+  await enforceDocumentCount("SELECT count(*) FROM interviewai_user_documents WHERE user_id = $1",
+    [userId], MAX_USER_DOCUMENTS);
   const contentType = fileType(file);
   let text;
   try {
@@ -165,17 +224,21 @@ async function uploadUserDocument(userId, kind, file) {
     throw httpError(400, "could not read this file; use a text-based PDF, DOCX or TXT file");
   }
   if (text.length < 20) throw httpError(400, "the file contains too little searchable text");
+  const contents = searchableChunks(text);
   const id = newId("doc");
   const filename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
   const storagePath = `${userId}/library/${id}/${filename}`;
   const { error: uploadError } = await storage().upload(storagePath, file.buffer, { contentType, upsert: false });
   if (uploadError) throw new Error(`Supabase Storage upload failed: ${uploadError.message}`);
   try {
-    await getPool().query(`INSERT INTO interviewai_user_documents
+    await insertWithinQuota(`library:${userId}`,
+      "SELECT count(*) FROM interviewai_user_documents WHERE user_id = $1",
+      [userId], MAX_USER_DOCUMENTS,
+      `INSERT INTO interviewai_user_documents
       (id, user_id, kind, filename, content_type, storage_path, extracted_text)
       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [id, userId, kind, filename, contentType, storagePath, text]);
-    const chunks = ragService.chunkText(sanitizeSourceText(text), 2000, 200).map((content, index) => ({
+    const chunks = contents.map((content, index) => ({
       id: `${id}-${index + 1}`, label: `${kind.toUpperCase()}: ${filename}`,
       content,
     }));
@@ -219,4 +282,5 @@ async function exportUserDocuments(userId) {
 module.exports = { fileType, extractText, listDocuments, exportDocuments, uploadDocument,
   deleteDocument, deleteForSession, listUserDocuments, getUserDocument,
   uploadUserDocument, deleteUserDocument, deleteAllUserDocuments, exportUserDocuments,
-  MAX_FILE_BYTES };
+  searchableChunks, MAX_FILE_BYTES, MAX_TEXT_CHARS, MAX_CHUNKS, MAX_USER_DOCUMENTS,
+  MAX_SESSION_DOCUMENTS };

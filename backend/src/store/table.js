@@ -18,6 +18,9 @@ class MemoryTable {
   async has(key) { return this.data.has(key); }
   async delete(key) { this.data.delete(key); }
   async values() { return [...this.data.values()].map((value) => structuredClone(value)); }
+  async valuesByUser(userId) {
+    return (await this.values()).filter((value) => value.userId === userId);
+  }
   async entries() { return [...this.data.entries()].map(([key, value]) => [key, structuredClone(value)]); }
 }
 
@@ -68,6 +71,15 @@ class PostgresTable {
 
   async values() {
     const result = await getPool().query(`SELECT value FROM ${this.tableName}`);
+    return result.rows.map((row) => row.value);
+  }
+
+  async valuesByUser(userId) {
+    if (this.tableName !== "interviewai_sessions") throw new Error("owner query is only available for sessions");
+    const result = await getPool().query(
+      `SELECT value FROM interviewai_sessions WHERE value->>'userId' = $1 ORDER BY value->>'startedAt' DESC`,
+      [userId]
+    );
     return result.rows.map((row) => row.value);
   }
 

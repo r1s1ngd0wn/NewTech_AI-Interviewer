@@ -1,4 +1,5 @@
 const DIMENSIONS = 768;
+const aiRequestLog = require("./aiRequestLogService");
 
 function config() {
   const provider = (process.env.EMBEDDING_PROVIDER || "").toLowerCase();
@@ -11,11 +12,28 @@ function config() {
   return null;
 }
 
+function usesNomicPrefixes(active = config()) {
+  return active?.provider === "local" && /nomic/i.test(active.model);
+}
+
+function modelKey(active = config()) {
+  if (!active) return null;
+  return `${active.provider}:${active.model}${usesNomicPrefixes(active) ? ":prefixed-v1" : ""}`;
+}
+
+function inputForTask(text, taskType, active = config()) {
+  if (!usesNomicPrefixes(active)) return text;
+  const prefix = taskType === "RETRIEVAL_QUERY" ? "search_query:" : "search_document:";
+  return `${prefix} ${text}`;
+}
+
 async function embed(text, taskType = "RETRIEVAL_DOCUMENT") {
   const active = config();
   if (!active) throw new Error("embedding provider is not configured");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
+  const started = Date.now();
+  let outcome = "error";
   try {
     const url = active.provider === "gemini"
       ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(active.model)}:embedContent`
@@ -26,7 +44,7 @@ async function embed(text, taskType = "RETRIEVAL_DOCUMENT") {
     const body = active.provider === "gemini"
       ? { model: `models/${active.model}`, content: { parts: [{ text }] },
           embedContentConfig: { taskType, outputDimensionality: DIMENSIONS, autoTruncate: true } }
-      : { model: active.model, input: text };
+      : { model: active.model, input: inputForTask(text, taskType, active) };
     const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
     if (!response.ok) throw new Error(`embedding provider returned ${response.status}`);
     const data = await response.json();
@@ -38,18 +56,23 @@ async function embed(text, taskType = "RETRIEVAL_DOCUMENT") {
       const reduced = vector.slice(0, DIMENSIONS);
       const magnitude = Math.hypot(...reduced);
       if (!magnitude) throw new Error("embedding model returned a zero vector");
+      outcome = "ok";
       return reduced.map((value) => value / magnitude);
     }
     if (vector.length !== DIMENSIONS) {
       throw new Error(`embedding model returned ${vector.length} dimensions; expected ${DIMENSIONS}`);
     }
+    outcome = "ok";
     return vector;
   } catch (error) {
     if (error.name === "AbortError") throw new Error("embedding request timed out");
     throw error;
   } finally {
     clearTimeout(timer);
+    await aiRequestLog.logAiRequest({ provider: active.provider, model: active.model,
+      operation: taskType === "RETRIEVAL_QUERY" ? "embed_query" : "embed_document",
+      durationMs: Date.now() - started, status: outcome });
   }
 }
 
-module.exports = { config, embed, DIMENSIONS };
+module.exports = { config, embed, modelKey, inputForTask, DIMENSIONS };

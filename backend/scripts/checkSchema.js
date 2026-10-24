@@ -8,7 +8,8 @@ async function main() {
       to_regclass('public.interviewai_sessions') IS NOT NULL AS sessions,
       to_regclass('public.interviewai_rag_chunks') IS NOT NULL AS session_chunks,
       to_regclass('public.interviewai_user_documents') IS NOT NULL AS library,
-      to_regclass('public.interviewai_knowledge_chunks') IS NOT NULL AS knowledge_chunks`);
+      to_regclass('public.interviewai_knowledge_chunks') IS NOT NULL AS knowledge_chunks,
+      to_regclass('public.interviewai_ai_request_logs') IS NOT NULL AS ai_request_logs`);
     console.log(result.rows[0]);
   } finally {
     await pool.end();

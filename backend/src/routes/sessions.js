@@ -110,6 +110,7 @@ router.delete("/:id/documents/:documentId", async (req, res, next) => {
     }
     await documentService.deleteDocument(req.user.id, req.params.id, req.params.documentId);
     await sessionService.removeDocumentContext(req.user.id, req.params.id, req.params.documentId);
+    await sessionService.removeDocumentChatReferences(req.user.id, req.params.id, req.params.documentId);
     res.status(204).end();
   } catch (err) {
     next(err);

@@ -238,7 +238,7 @@ export default function InterviewPage() {
         <div className="card card-pad interview-prep">
           <h2>Prepare your interview</h2>
           <p>Upload a CV or job description to add relevant context to the scenario questions. You can also continue without a document.</p>
-          <p className="muted">PDF, DOCX, TXT or Markdown, up to 5 MB. Text-based PDFs only. Uploaded text may be sent to configured AI providers and is stored privately in Supabase. Documents in your <a href="/documents">library</a> are also available here.</p>
+          <p className="muted">PDF, DOCX, TXT or Markdown, up to 5 MB and 100,000 extracted characters. Maximum 3 files for this interview. Text-based PDFs only. Uploaded text may be sent to configured AI providers and is stored privately in Supabase. Documents in your <a href="/documents">library</a> are also available here.</p>
           {documents.length > 0 && (
             <ul className="chat-document-list">
               {documents.map((document) => (

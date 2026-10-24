@@ -150,6 +150,7 @@ test("account deletion removes the user, sessions, chats and tokens", async () =
   const exported = await accounts.exportData(user.id);
   assert.equal(exported.sessions.length, 1);
   assert.deepEqual(exported.sessions[0].documents, []);
+  assert.deepEqual(exported.aiRequests, []);
   assert.equal(exported.user.passwordHash, undefined);
 
   await accounts.deleteAccount(user.id);

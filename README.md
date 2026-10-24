@@ -32,7 +32,8 @@ Requires Node.js 22.5+ and a Supabase project. Before starting the backend:
 
 1. Create a Supabase project. In its SQL Editor, run `backend/sql/001_app_store.sql`,
    then `backend/sql/002_rag.sql` (creates the private Storage bucket too), then
-   `backend/sql/003_document_library.sql` (reusable CV/JD library and shared question index).
+   `backend/sql/003_document_library.sql` (reusable CV/JD library and shared question index),
+   then run `npm run migrate:followup` in `backend` for the session-owner index and AI request log table.
 2. Copy `backend/.env.example` to `backend/.env`. From Supabase **Connect**, copy the
    Direct connection string (IPv6) or Session pooler string (IPv4) into `DATABASE_URL`.
    Replace its password placeholder locally; percent-encode reserved characters.
@@ -61,9 +62,14 @@ question-bank entries, streams answers with citations, and refuses off-topic req
 The chat on a completed feedback page still answers about that particular interview.
 To refresh question-bank embeddings after editing scenarios, run `npm run index:questions`
 from `backend` (one embedding request per question; check your provider quota first).
+After changing embedding model or enabling a Nomic local model, run `npm run index:questions`
+and `npm run reindex:documents`. Nomic queries and documents use different prefixes; existing
+vectors are re-embedded under a new model key.
 
 To try document-grounded questions, open **Documents** and upload a CV or job
-description (PDF, DOCX, TXT or Markdown, up to 5 MB). Documents in the library are
+description (PDF, DOCX, TXT or Markdown, up to 5 MB, 100,000 extracted characters and
+40 searchable chunks). Each account can keep 10 library documents and each interview
+can hold 3 session documents. Documents in the library are
 available to your future interviews. You can also upload a document only for one
 interview on its preparation screen. Then select **Start interview**. A matching excerpt
 is available under **Context from...** while the interviewer speaks only the scenario question;
@@ -71,7 +77,8 @@ the original question and its scoring keywords remain intact. Without a matching
 the scenario question is shown as written. After scoring,
 the same documents are available to the interview chat. Delete session files from that
 chat or library files from **Documents**. Deletion removes their search chunks and any
-saved question excerpts derived from the file.
+saved question excerpts derived from the file. Chat history is cleared only for sessions
+that included the deleted file as question context or cited it in a reply.
 
 ## Tests
 
@@ -83,7 +90,19 @@ npm test
 Uses Node's built-in test runner against isolated in-memory tables, so it never touches
 Supabase. Covers the scoring rules (including filler-word
 matching), auth validation and token expiry, session lifecycle, chat, stale-session cleanup,
-  account deletion/export, RAG source isolation, no-match replies, input guardrails and SSE framing.
+  account deletion/export, RAG source isolation, document limits, selective chat deletion,
+  no-match replies, input guardrails and SSE framing.
+
+`npm run eval:long` runs guardrail cases without a database. To evaluate retrieval, upload
+`test-fixtures/sample-cv-long-test.txt` and `test-fixtures/sample-jd-long-test.txt` to a
+dedicated test account, index the question bank, then run `npm run eval:long:live` when
+only one account has both fixtures. With several accounts, set
+`$env:EVAL_EMAIL="your-test-email@example.com"` and run `npm run eval:long` in PowerShell. The runner
+checks 23 retrieval questions and reports source selection, not factual correctness of
+generated prose. Review failed cases before changing the similarity threshold.
+On 2026-10-24 the supplied synthetic fixtures passed 23/23 source-selection cases and
+11/11 guard cases with Gemini embeddings at local threshold 0.55. This is a small
+fixture result, not a general answer-accuracy claim.
 
 For a temporary UI preview before creating a Supabase project, start the backend with
 `STORE_BACKEND=memory`. This mode is disabled in production, never uses SQLite, does not
@@ -104,7 +123,8 @@ persist data and cannot upload files. Normal development uses Supabase.
 | `EMBEDDING_PROVIDER` | `gemini` or `local` to enable pgvector RAG |
 | `GEMINI_EMBEDDING_MODEL` | Gemini embedding model (default `gemini-embedding-001`) |
 | `LOCAL_EMBEDDING_MODEL` | Local embedding model ID; must return 768 dimensions |
-| `RAG_MATCH_THRESHOLD` | Minimum cosine similarity for a source (default 0.72; calibrate with evaluation cases) |
+| `RAG_MATCH_THRESHOLD` | Optional global cosine-similarity override; unset uses provider defaults |
+| `RAG_MATCH_THRESHOLD_GEMINI` / `RAG_MATCH_THRESHOLD_LOCAL` | Optional provider overrides (defaults 0.60 / 0.65); validate with `eval:long` |
 | `RAG_PREP_THRESHOLD` | Minimum document similarity for interview question context (default 0.5) |
 | `GEMINI_API_KEY` | Optional. Enables Gemini for chat replies and interviewer reactions |
 | `GEMINI_MODEL` | Gemini model name (default `gemini-flash-latest`) |
@@ -114,6 +134,13 @@ persist data and cannot upload files. Normal development uses Supabase.
 | `LLM_PROVIDER` | `local` uses a local server, `none` forces scripted replies; unset means Gemini if a key exists |
 | `LOCAL_LLM_URL` / `LOCAL_LLM_MODEL` / `LOCAL_LLM_API_KEY` | Local server base URL (default LM Studio `http://localhost:1234/v1`), model id, optional key |
 | `LLM_REACTION_TIMEOUT_MS` | How long an interview waits for a model-written reaction (8000 Gemini, 20000 local) |
+
+AI request metadata (user ID, provider, model, operation, prompt version, duration, status)
+is saved in `interviewai_ai_request_logs` after migration 005. Prompts, document text,
+model responses and keys are not saved in this log. The Coach and completed-interview
+chat use versioned prompts in `backend/src/prompts/`. Account export includes these
+metadata rows, and account deletion removes them. Migration 006 makes late-arriving logs
+subject to the same deletion rule; it does not alter existing orphan rows.
 
 ## Optional: Gemini API for the LLM parts
 

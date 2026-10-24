@@ -2,6 +2,7 @@
 const store = require("../store");
 const sessionService = require("./sessionService");
 const documentService = require("./documentService");
+const aiRequestLog = require("./aiRequestLogService");
 const { toPublicUser, httpError } = require("./authService");
 
 async function exportData(userId) {
@@ -16,7 +17,8 @@ async function exportData(userId) {
   })));
 
   const documents = process.env.STORE_BACKEND === "memory" ? [] : await documentService.exportUserDocuments(userId);
-  return { exportedAt: new Date().toISOString(), user: toPublicUser(user), sessions, documents };
+  const aiRequests = await aiRequestLog.listForUser(userId);
+  return { exportedAt: new Date().toISOString(), user: toPublicUser(user), sessions, documents, aiRequests };
 }
 
 async function deleteAccount(userId) {
@@ -25,6 +27,7 @@ async function deleteAccount(userId) {
 
   await sessionService.deleteAllSessionsForUser(userId);
   if (process.env.STORE_BACKEND !== "memory") await documentService.deleteAllUserDocuments(userId);
+  await aiRequestLog.deleteForUser(userId);
   for (const [token, record] of await store.tokens.entries()) {
     const owner = typeof record === "string" ? record : record.userId;
     if (owner === userId) await store.tokens.delete(token);

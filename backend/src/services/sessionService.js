@@ -218,6 +218,16 @@ async function removeDocumentContext(userId, sessionId, documentId) {
   await store.sessionChats.delete(sessionId);
 }
 
+async function removeDocumentChatReferences(userId, sessionId, documentId) {
+  await getOwnedSession(userId, sessionId);
+  const chat = await store.sessionChats.get(sessionId);
+  if (chat?.some((message) => message.sources?.some((source) =>
+    source.documentId === documentId || source.id?.startsWith(`${documentId}-`) ||
+    source.id?.includes(`-${documentId}-`)))) {
+    await store.sessionChats.delete(sessionId);
+  }
+}
+
 async function deleteAllSessionsForUser(userId) {
   for (const session of await listSessionsForUser(userId)) {
     await removeSessionData(session.id);
@@ -239,8 +249,7 @@ async function purgeStaleSessions(maxAgeMs = STALE_SESSION_MS) {
 }
 
 async function listSessionsForUser(userId) {
-  return (await store.sessions.values())
-    .filter((s) => s.userId === userId)
+  return (await store.sessions.valuesByUser(userId))
     .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
 }
 
@@ -275,6 +284,7 @@ module.exports = {
   getFeedback,
   deleteSession,
   removeDocumentContext,
+  removeDocumentChatReferences,
   deleteAllSessionsForUser,
   purgeStaleSessions,
   listSessionsForUser,

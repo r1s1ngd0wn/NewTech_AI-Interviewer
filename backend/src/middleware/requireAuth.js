@@ -1,4 +1,5 @@
 const { getUserFromToken } = require("../services/authService");
+const aiRequestLog = require("../services/aiRequestLogService");
 
 async function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
@@ -15,7 +16,7 @@ async function requireAuth(req, res, next) {
   }
   req.user = user;
   req.token = token;
-  next();
+  aiRequestLog.runForUser(user.id, next);
 }
 
 module.exports = requireAuth;
