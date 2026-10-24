@@ -62,6 +62,15 @@ so it never touches `backend/data/`. Covers the scoring rules (including filler-
 matching), auth validation and token expiry, session lifecycle, chat, stale-session cleanup,
 and account deletion/export.
 
+### AI evaluation
+
+`npm run eval` (in `backend/`) calls the configured model on the cases in `backend/eval/cases/`,
+applies deterministic checks, prints the pass rate and average time, and saves the result to
+`backend/eval/results/`. It makes real API calls. Useful options: `--provider local` (LM Studio, no
+quota), `--model NAME`, `--runs 3` (the model is not deterministic), `--prompt-file
+src/prompts/archive/critique.v1.md --no-grounding` (reproduce the behaviour before a change). See
+`docs/adr/0002-grounding-checks-on-model-output.md` for the first before/after results.
+
 ## Configuration (`backend/.env`, see `.env.example`)
 
 | Variable | Purpose |
@@ -76,14 +85,15 @@ and account deletion/export.
 | `GEMINI_MODEL` | Gemini model name (default `gemini-flash-latest`) |
 | `LLM_TIMEOUT_MS` | Per-call timeout for the model (default 15000; interviewer reactions use 8000) |
 | `GEMINI_THINKING_BUDGET` | `0` (default) switches reasoning off for speed; `default` leaves it to the model |
-| `LLM_REACTIONS` | `off` stops the model writing interviewer reactions (chat only) |
+| `LLM_REACTIONS` | `off` stops the model writing interviewer reactions |
+| `LLM_CRITIQUE` | `off` stops the model writing the per-answer review on the feedback page (a basic review is shown instead) |
 | `LLM_PROVIDER` | `local` uses a local server, `none` forces scripted replies; unset means Gemini if a key exists |
 | `LOCAL_LLM_URL` / `LOCAL_LLM_MODEL` / `LOCAL_LLM_API_KEY` | Local server base URL (default LM Studio `http://localhost:1234/v1`), model id, optional key |
 | `LLM_REACTION_TIMEOUT_MS` | How long an interview waits for a model-written reaction (8000 Gemini, 20000 local) |
 
 ## Optional: Gemini API for the LLM parts
 
-The interviewer's short reaction after each answer and the post-interview chat can be written by
+The interviewer's short reaction after each answer, the per-answer review on the feedback page and the post-interview chat can be written by
 Google's Gemini API. Add these lines to `backend/.env` (git-ignored; never put the key in
 `frontend/`), then restart the backend:
 

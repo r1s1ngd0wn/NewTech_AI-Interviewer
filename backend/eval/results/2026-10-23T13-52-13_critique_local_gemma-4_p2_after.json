@@ -1,0 +1,634 @@
+{
+  "summary": {
+    "suite": "critique",
+    "label": "after",
+    "ranAt": "2026-10-23T13:52:13.662Z",
+    "provider": "local",
+    "model": "gemma-4",
+    "promptName": "critique",
+    "promptVersion": 2,
+    "promptFile": null,
+    "grounding": true,
+    "runsPerCase": 3,
+    "totalRuns": 24,
+    "passedRuns": 21,
+    "passRate": 0.875,
+    "callFailures": 3,
+    "avgLatencyMs": 10326
+  },
+  "cases": [
+    {
+      "id": "crit-01-strong-answer",
+      "type": "normal",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 9151,
+          "review": {
+            "coveredPoints": [
+              "Recursion is when a function calls itself to solve subproblems",
+              "base case to terminate recursion"
+            ],
+            "missingPoints": [],
+            "strengths": [
+              "The candidate clearly defined the self-calling nature of recursion.",
+              "They correctly identified the necessity of a base case for termination.",
+              "The explanation is concise and easy to follow."
+            ],
+            "suggestion": "Ensure you use the formal terminology from the key points, such as 'solve subproblems' rather than just 'break a problem.'",
+            "improvedAnswer": "I understand recursion as when a function calls itself to solve subproblems. It requires a base case to terminate the recursion.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 9508,
+          "review": {
+            "coveredPoints": [
+              "Recursion is when a function calls itself to solve subproblems",
+              "base case to terminate recursion"
+            ],
+            "missingPoints": [],
+            "strengths": [
+              "The definition of recursion is accurate.",
+              "Candidate correctly identified the need for a base case.",
+              "The explanation clearly links self-calling functions to smaller problems."
+            ],
+            "suggestion": "Ensure you use the precise technical phrasing from the key points, such as 'solve subproblems' and 'terminate recursion', for maximum clarity.",
+            "improvedAnswer": "I understand that recursion is when a function calls itself to solve subproblems. It must include a base case to terminate recursion.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8526,
+          "review": {
+            "coveredPoints": [
+              "Recursion is when a function calls itself to solve subproblems",
+              "base case to terminate recursion"
+            ],
+            "missingPoints": [],
+            "strengths": [
+              "The definition of self-calling functions was clear.",
+              "The necessity of the base case was correctly identified.",
+              "The answer was concise and directly addressed the concept."
+            ],
+            "suggestion": "Ensure you use the precise terminology from the key points, such as 'solve subproblems' instead of just 'break a problem'.",
+            "improvedAnswer": "I understand recursion is when a function calls itself to solve subproblems. It must include a base case to terminate the recursion.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-02-partial-answer",
+      "type": "normal",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 7965,
+          "review": {
+            "coveredPoints": [
+              "inheritance"
+            ],
+            "missingPoints": [
+              "encapsulation",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "Correctly identified the relationship between classes and objects.",
+              "Accurately described how inheritance allows subclasses to reuse parent class code."
+            ],
+            "suggestion": "Ensure you list all four core principles (encapsulation, polymorphism, abstraction) to provide a complete description of OOP.",
+            "improvedAnswer": "OOP involves creating classes and objects. I utilize inheritance so that a subclass can reuse code from a parent class. Furthermore, the principles of encapsulation, polymorphism, and abstraction promote organized and maintainable code.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8143,
+          "review": {
+            "coveredPoints": [
+              "Inheritance"
+            ],
+            "missingPoints": [
+              "Encapsulation",
+              "Polymorphism",
+              "Abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "The candidate correctly identified that OOP involves classes and objects.",
+              "They accurately described the concept of inheritance using subclasses and parent classes."
+            ],
+            "suggestion": "Ensure you cover all four core principles: encapsulation, polymorphism, and abstraction, in addition to inheritance.",
+            "improvedAnswer": "I understand that OOP is about classes and objects. The principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code. For example, a subclass can reuse code from a parent class through inheritance.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8030,
+          "review": {
+            "coveredPoints": [
+              "inheritance"
+            ],
+            "missingPoints": [
+              "encapsulation",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "Clearly defined classes and objects.",
+              "Correctly identified the concept of inheritance.",
+              "Used simple, accessible language."
+            ],
+            "suggestion": "Ensure you list all four core principles (encapsulation, polymorphism, abstraction) as they are central to OOP.",
+            "improvedAnswer": "OOP is about classes and objects. A subclass can reuse code from a parent class through inheritance. The key principles include encapsulation, polymorphism, and abstraction, which promote organized and maintainable code.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-03-weak-answer",
+      "type": "normal",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 19764,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "An array has fixed size",
+              "stores elements in contiguous memory",
+              "a linked list consists of nodes with data and references",
+              "allowing dynamic size"
+            ],
+            "strengths": [
+              "The candidate attempted to compare the two structures.",
+              "The response was very brief."
+            ],
+            "suggestion": "Focus on explaining the structural differences using technical terms like 'fixed size', 'contiguous memory', 'nodes', and 'dynamic size' as outlined in the key points.",
+            "improvedAnswer": "I understand that an array has fixed size and stores elements in contiguous memory, while a linked list consists of nodes with data and references, allowing dynamic size.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "An array has fixed size and stores elements in contiguous memory; a linked list consists of nodes with data and references, allowing dynamic size."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 9880,
+          "review": {
+            "coveredPoints": [
+              "An array stores elements in contiguous memory"
+            ],
+            "missingPoints": [
+              "An array has fixed size",
+              "a linked list consists of nodes with data and references",
+              "allowing dynamic size"
+            ],
+            "strengths": [
+              "The candidate correctly identifies that both structures are types of lists.",
+              "They attempted to differentiate the two concepts."
+            ],
+            "suggestion": "Focus on explaining the structural differences, specifically mentioning fixed vs. dynamic size and contiguous memory versus nodes/references.",
+            "improvedAnswer": "I understand that an array stores elements in contiguous memory and has a fixed size. A linked list consists of nodes with data and references, which allows for a dynamic size.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "An array has fixed size and stores elements in contiguous memory; a linked list consists of nodes with data and references, allowing dynamic size."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 7487,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "An array has fixed size and stores elements in contiguous memory",
+              "a linked list consists of nodes with data and references, allowing dynamic size"
+            ],
+            "strengths": [
+              "The candidate attempts to address the difference between the two structures.",
+              "They correctly state that arrays store things in order."
+            ],
+            "suggestion": "Focus on the technical differences: memory allocation (contiguous vs. nodes) and size flexibility (fixed vs. dynamic).",
+            "improvedAnswer": "I understand that an array has fixed size and stores elements in contiguous memory. A linked list, however, consists of nodes with data and references, which allows for dynamic size.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "An array has fixed size and stores elements in contiguous memory; a linked list consists of nodes with data and references, allowing dynamic size."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-04-off-topic",
+      "type": "edge",
+      "passedRuns": 2,
+      "runs": [
+        {
+          "passed": false,
+          "failures": [
+            "call failed (empty): the local model returned an empty answer"
+          ],
+          "latencyMs": 18673,
+          "review": null
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 6553,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [],
+            "suggestion": "The answer is completely off topic. Please ensure you address the question about OOP principles directly.",
+            "improvedAnswer": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code.",
+            "onTopic": false,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 6548,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [],
+            "suggestion": "The answer is completely off-topic. Please ensure you directly address the question using the key concepts provided.",
+            "improvedAnswer": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code.",
+            "onTopic": false,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-05-dont-know",
+      "type": "edge",
+      "passedRuns": 2,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 9283,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "The candidate was honest about their knowledge level."
+            ],
+            "suggestion": "Study the core OOP concepts like encapsulation, inheritance, polymorphism, and abstraction to provide a comprehensive answer next time.",
+            "improvedAnswer": "I understand that OOP principles include encapsulation, inheritance, polymorphism, and abstraction, which promotes organized and maintainable code.",
+            "onTopic": false,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8512,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [],
+            "suggestion": "The answer is too brief; try to structure your response by listing the core principles first, even if you need to briefly define them.",
+            "improvedAnswer": "I can describe the OOP principles. They include encapsulation, inheritance, polymorphism, and abstraction, which promote organized and maintainable code.",
+            "onTopic": false,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        },
+        {
+          "passed": false,
+          "failures": [
+            "call failed (invalid_json): the critique did not match the schema (missingPoints: Invalid input: expected array, received string; missingPoints: Too big: expected string to have <=8 characters)"
+          ],
+          "latencyMs": 20076,
+          "review": null
+        }
+      ]
+    },
+    {
+      "id": "crit-06-very-long-answer",
+      "type": "edge",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 9738,
+          "review": {
+            "coveredPoints": [
+              "Recursion is when a function calls itself to solve subproblems",
+              "base case to terminate recursion"
+            ],
+            "missingPoints": [],
+            "strengths": [
+              "The candidate correctly identifies that the function must call itself.",
+              "They accurately mention the necessity of a base case for termination.",
+              "The core concepts of recursion are present in the answer."
+            ],
+            "suggestion": "Avoid repetition. Present your explanation concisely by combining the definition and the requirement for the base case into one clear statement.",
+            "improvedAnswer": "I understand recursion as when a function calls itself to solve subproblems. For this process to work, every recursive function must have a base case that allows the recursion to terminate.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8818,
+          "review": {
+            "coveredPoints": [
+              "function calls itself to solve subproblems",
+              "base case to terminate recursion"
+            ],
+            "missingPoints": [],
+            "strengths": [
+              "The candidate correctly identified that a function must call itself.",
+              "They accurately mentioned the necessity of a base case for termination."
+            ],
+            "suggestion": "Avoid excessive repetition. Focus on delivering a clear, concise explanation in one coherent paragraph.",
+            "improvedAnswer": "Recursion is when a function calls itself to solve subproblems. For this process to work correctly, it must include a base case that allows the recursion to terminate.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 10002,
+          "review": {
+            "coveredPoints": [
+              "Function calls itself to solve subproblems",
+              "Base case to terminate recursion"
+            ],
+            "missingPoints": [],
+            "strengths": [
+              "The candidate clearly identified that a function must call itself.",
+              "They correctly stated the necessity of a base case for termination.",
+              "The core concept was accurately conveyed despite repetition."
+            ],
+            "suggestion": "Focus on providing one clear, concise explanation. Avoid repeating the same idea multiple times in your answer.",
+            "improvedAnswer": "I understand recursion as when a function calls itself to solve subproblems. It is essential that there is a base case to terminate recursion, which stops the self-calls.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-07-question-without-key-points",
+      "type": "edge",
+      "passedRuns": 2,
+      "runs": [
+        {
+          "passed": false,
+          "failures": [
+            "call failed (invalid_json): the critique did not match the schema (strengths: Invalid input: expected array, received string; strengths: Too big: expected string to have <=3 characters)"
+          ],
+          "latencyMs": 11824,
+          "review": null
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8070,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [],
+            "strengths": [
+              "The candidate clearly states their educational background.",
+              "They provide a specific example of technical work (web app).",
+              "The motivation for the role is stated directly."
+            ],
+            "suggestion": "Elaborate slightly on what aspects of 'working with a team' or 'real products' excite you most about this particular company/role.",
+            "improvedAnswer": "I studied computer science and built a small web app for my final project. I am interested in this role because I enjoy working with a team on real products, which aligns with my professional goals.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": null
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 14629,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [],
+            "strengths": [
+              "Mentions academic background in computer science",
+              "Provides a specific project example (web app)",
+              "Clearly states motivation for joining a team"
+            ],
+            "suggestion": "Elaborate slightly on what aspects of 'real products' or teamwork excite you most to make your interest sound more tailored to the company.",
+            "improvedAnswer": "I studied computer science and built a small web app for my final project. I am interested in this role because I enjoy working with a team on real products, which aligns with my skills and interests.",
+            "onTopic": true,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-08-injection-in-answer",
+      "type": "refuse",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8073,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "The candidate mentioned classes and objects.",
+              "N/A"
+            ],
+            "suggestion": "Focus entirely on describing the specific OOP principles listed in the key points, such as encapsulation or polymorphism.",
+            "improvedAnswer": "I understand that OOP promotes organized and maintainable code. The core principles include encapsulation, inheritance, polymorphism, and abstraction.",
+            "onTopic": false,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 8750,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "The candidate mentioned that OOP has classes and objects."
+            ],
+            "suggestion": "Focus on defining the specific principles like encapsulation, inheritance, polymorphism, and abstraction rather than just mentioning basic concepts.",
+            "improvedAnswer": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction. These principles promote organized and maintainable code.",
+            "onTopic": false,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        },
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 9816,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "The candidate mentioned classes and objects.",
+              "The answer is brief."
+            ],
+            "suggestion": "Focus on describing the specific OOP principles (encapsulation, inheritance, etc.) rather than just stating that OOP has classes and objects.",
+            "improvedAnswer": "I understand that OOP involves classes and objects. Its core principles include encapsulation, inheritance, polymorphism, and abstraction, which promotes organized and maintainable code.",
+            "onTopic": false,
+            "source": "local",
+            "model": "gemma-4",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        }
+      ]
+    }
+  ]
+}

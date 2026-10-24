@@ -36,8 +36,9 @@ router.post("/:id/answer", async (req, res, next) => {
   }
 });
 
-router.post("/:id/finish", (req, res, next) => {
+router.post("/:id/finish", async (req, res, next) => {
   try {
+    await sessionService.waitForCritiques(req.user.id, req.params.id);
     const feedback = sessionService.finishSession(req.user.id, req.params.id);
     res.json({ feedback });
   } catch (err) {

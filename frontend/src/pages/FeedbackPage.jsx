@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api.js";
 import ScoreBar from "../components/ScoreBar.jsx";
 import SessionChat from "../components/SessionChat.jsx";
+import CritiqueBlock from "../components/CritiqueBlock.jsx";
 import { CheckIcon, AlertIcon, TrashIcon } from "../components/icons.jsx";
 import { usePageMeta } from "../hooks/usePageMeta.js";
 
@@ -27,6 +28,18 @@ export default function FeedbackPage() {
       cancelled = true;
     };
   }, [sessionId]);
+
+  // Reviews written by the model can arrive after scoring; refresh until none are pending.
+  useEffect(() => {
+    if (!feedback?.critiquesPending) return undefined;
+    const timer = setTimeout(() => {
+      api
+        .getFeedback(sessionId)
+        .then((data) => setFeedback(data.feedback))
+        .catch(() => {});
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [feedback, sessionId]);
 
   async function handleDelete() {
     if (!window.confirm("Delete this session and its transcript? This can't be undone.")) return;
@@ -119,11 +132,17 @@ export default function FeedbackPage() {
 
       <div className="card card-pad" style={{ marginBottom: "1.5rem" }}>
         <h3 className="mt-0">Transcript highlights</h3>
+        {feedback.critiquesPending && (
+          <p className="muted" role="status">
+            The AI is still writing reviews of your answers. They will appear here by themselves.
+          </p>
+        )}
         <div className="stack">
           {feedback.highlights.map((h) => (
             <div key={h.questionId} className="speech-bubble">
               <strong>{h.questionText}</strong>
               <p style={{ margin: "0.5rem 0 0" }}>&ldquo;{h.answerExcerpt}&rdquo;</p>
+              <CritiqueBlock critique={h.critique} />
             </div>
           ))}
         </div>

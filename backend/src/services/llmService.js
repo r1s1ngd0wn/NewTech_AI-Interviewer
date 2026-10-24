@@ -20,10 +20,12 @@ const GEMINI_TIMEOUT_MS = 15000;
 const LOCAL_TIMEOUT_MS = 45000;
 
 class LlmError extends Error {
-  constructor(message, { status } = {}) {
+  // code: "timeout" | "unreachable" | "empty" | "invalid_json" | "blocked" | "rate_limited" | "http_error"
+  constructor(message, { status, code } = {}) {
     super(message);
     this.name = "LlmError";
     this.upstreamStatus = status;
+    this.code = code || (status === 429 ? "rate_limited" : status ? "http_error" : "error");
   }
 }
 
@@ -108,7 +110,8 @@ async function postJson({ url, headers, body, timeoutMs, timeoutMessage, unreach
     const data = await res.json().catch(() => null);
     return { res, data };
   } catch (err) {
-    throw new LlmError(err.name === "AbortError" ? timeoutMessage : unreachableMessage);
+    const timedOut = err.name === "AbortError";
+    throw new LlmError(timedOut ? timeoutMessage : unreachableMessage, { code: timedOut ? "timeout" : "unreachable" });
   } finally {
     clearTimeout(timer);
   }
@@ -116,7 +119,7 @@ async function postJson({ url, headers, body, timeoutMs, timeoutMessage, unreach
 
 // ---- Gemini ----------------------------------------------------------------------------
 
-async function generateGemini({ system, messages, temperature, maxOutputTokens, timeoutMs }) {
+async function generateGemini({ system, messages, temperature, maxOutputTokens, timeoutMs, responseSchema }) {
   const apiKey = env("GEMINI_API_KEY");
   const model = env("GEMINI_MODEL") || DEFAULT_GEMINI_MODEL;
   const budget = thinkingBudget();
@@ -133,6 +136,7 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
     generationConfig: {
       temperature,
       maxOutputTokens,
+      ...(responseSchema ? { responseMimeType: "application/json", responseSchema } : {}),
       ...(withThinking && budget !== null ? { thinkingConfig: { thinkingBudget: budget } } : {}),
     },
   });
@@ -157,7 +161,7 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
     throw new LlmError(`Gemini returned ${res.status}${detail}`, { status: res.status });
   }
   if (data?.promptFeedback?.blockReason) {
-    throw new LlmError(`Gemini blocked the request (${data.promptFeedback.blockReason})`);
+    throw new LlmError(`Gemini blocked the request (${data.promptFeedback.blockReason})`, { code: "blocked" });
   }
 
   // Reasoning models can return their thinking as parts flagged `thought`; never show those.
@@ -166,7 +170,7 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
     .map((p) => p.text || "")
     .join("")
     .trim();
-  if (!text) throw new LlmError("Gemini returned an empty answer");
+  if (!text) throw new LlmError("Gemini returned an empty answer", { code: "empty" });
   return text;
 }
 
@@ -229,7 +233,7 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
     throw new LlmError(`the local model server returned ${res.status}${detail}`, { status: res.status });
   }
   const text = stripReasoning(String(data?.choices?.[0]?.message?.content || ""));
-  if (!text) throw new LlmError("the local model returned an empty answer");
+  if (!text) throw new LlmError("the local model returned an empty answer", { code: "empty" });
   return text;
 }
 
@@ -244,4 +248,36 @@ async function generate({ system, messages, temperature = 0.4, maxOutputTokens =
   return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
 }
 
-module.exports = { generate, isEnabled, status, reactionTimeoutMs, LlmError };
+// ---- structured (JSON) output ----------------------------------------------------------
+
+// Models sometimes wrap JSON in a ```json fence or add a sentence around it.
+function parseJsonText(text) {
+  const unfenced = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+  try {
+    return JSON.parse(unfenced);
+  } catch {
+    const start = unfenced.indexOf("{");
+    const end = unfenced.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(unfenced.slice(start, end + 1));
+      } catch {
+        // fall through to the error below
+      }
+    }
+    throw new LlmError("the model did not return valid JSON", { code: "invalid_json" });
+  }
+}
+
+// Asks the model for a JSON object and returns it parsed. `responseSchema` is a Gemini schema
+// (see toGeminiSchema in utils/schema.js) that makes Gemini produce matching JSON; the caller
+// still has to validate the result, because a model can follow a schema and still be wrong.
+async function generateJson({ system, messages, responseSchema, temperature = 0.2, maxOutputTokens = 1024, timeoutMs }) {
+  const active = provider();
+  if (!active) throw new LlmError("the LLM is not configured");
+  const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs() };
+  const text = await (active === "local" ? generateLocal(args) : generateGemini({ ...args, responseSchema }));
+  return parseJsonText(text);
+}
+
+module.exports = { generate, generateJson, isEnabled, status, reactionTimeoutMs, LlmError };

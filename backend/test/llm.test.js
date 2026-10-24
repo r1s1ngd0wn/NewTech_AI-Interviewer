@@ -291,6 +291,7 @@ test("LLM_REACTIONS=off keeps the interviewer scripted without any model call", 
   const { session } = sessions.startSession(user.id, SCENARIO_ID);
   enable();
   process.env.LLM_REACTIONS = "off";
+  process.env.LLM_CRITIQUE = "off";
   stubGemini(() => geminiOk("should not be used"));
   try {
     const { next } = await sessions.answerTurn(user.id, session.id, ANSWER);
@@ -298,6 +299,7 @@ test("LLM_REACTIONS=off keeps the interviewer scripted without any model call", 
     assert.equal(next.reactionSource, "scripted");
   } finally {
     delete process.env.LLM_REACTIONS;
+    delete process.env.LLM_CRITIQUE;
   }
 });
 

@@ -4,10 +4,18 @@ const scenarioService = require("./scenarioService");
 const aiSimulator = require("./aiSimulator");
 const scoringService = require("./scoringService");
 const llmService = require("./llmService");
+const critiqueService = require("./critiqueService");
 const { httpError } = require("./authService");
 
 const STALE_SESSION_MS = 2 * 60 * 60 * 1000;
 const MAX_ANSWER_LENGTH = 4000;
+// How long finishing waits for model reviews still running in the background. Model latency is
+// uneven (5-20 s per review on a free tier), so this is short: reviews that are not ready show up
+// on the feedback page when they arrive (see critiquesPending in withCritiques).
+const CRITIQUE_WAIT_MS = 6000;
+
+// sessionId -> promises of reviews still being written by the model.
+const pendingCritiques = new Map();
 
 function startSession(userId, scenarioId) {
   const scenario = scenarioService.getScenario(scenarioId);
@@ -69,6 +77,8 @@ function submitAnswer(userId, sessionId, answerText, inputMode) {
     answerText: String(answerText || "").trim(),
     inputMode: normalizeInputMode(inputMode),
     answeredAt: new Date().toISOString(),
+    // Always present; replaced by the model's review when one arrives (see answerTurn).
+    critique: critiqueService.scriptedCritique(currentQuestion, answerText),
   });
 
   const next = aiSimulator.nextTurn(scenario, session);
@@ -79,12 +89,59 @@ function submitAnswer(userId, sessionId, answerText, inputMode) {
   return { session: toPublicSession(session), next };
 }
 
+// Replaces the stored review for one answer, unless the session or answer is gone or changed.
+function applyCritique(sessionId, index, questionId, critique) {
+  const session = store.sessions.get(sessionId);
+  const turn = session?.turns[index];
+  if (!turn || turn.questionId !== questionId) return;
+  turn.critique = critique;
+  store.sessions.set(sessionId, session);
+}
+
+// Starts the model's review of the newest answer without making the interview wait for it: the
+// scripted review is already stored, and the model's replaces it when it arrives.
+// LLM_CRITIQUE=off keeps the model for the chat only (saves quota on free API tiers).
+function startCritique(userId, sessionId) {
+  if (!llmService.isEnabled() || process.env.LLM_CRITIQUE === "off") return;
+  const session = getOwnedSession(userId, sessionId);
+  const index = session.turns.length - 1;
+  const turn = session.turns[index];
+  const question = scenarioService.getScenario(session.scenarioId)?.questions.find((q) => q.id === turn.questionId);
+
+  const job = critiqueService
+    .critiqueAnswer(question, turn.answerText)
+    .then((critique) => applyCritique(sessionId, index, turn.questionId, critique))
+    .catch(() => {})
+    .finally(() => {
+      const jobs = pendingCritiques.get(sessionId);
+      jobs?.delete(job);
+      if (jobs && !jobs.size) pendingCritiques.delete(sessionId);
+    });
+  if (!pendingCritiques.has(sessionId)) pendingCritiques.set(sessionId, new Set());
+  pendingCritiques.get(sessionId).add(job);
+}
+
+// Lets finishing pick up reviews that are almost done, but never for longer than CRITIQUE_WAIT_MS;
+// whatever is not ready stays scripted until it arrives.
+async function waitForCritiques(userId, sessionId, timeoutMs = CRITIQUE_WAIT_MS) {
+  getOwnedSession(userId, sessionId); // ownership check
+  const jobs = pendingCritiques.get(sessionId);
+  if (!jobs?.size) return;
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  await Promise.race([Promise.all([...jobs]), timeout]);
+  clearTimeout(timer);
+}
+
 // submitAnswer() plus an LLM-written interviewer reaction when one is configured. Any
 // failure (no key, timeout, rejected output) silently keeps the scripted reaction, and the
 // next question always comes from the scenario list.
 async function answerTurn(userId, sessionId, answerText, inputMode) {
   const result = submitAnswer(userId, sessionId, answerText, inputMode);
   result.next.reactionSource = "scripted";
+  startCritique(userId, sessionId);
   // LLM_REACTIONS=off keeps the model for the chat only (saves quota on free API tiers).
   if (!llmService.isEnabled() || process.env.LLM_REACTIONS === "off") return result;
 
@@ -102,7 +159,7 @@ async function answerTurn(userId, sessionId, answerText, inputMode) {
 function finishSession(userId, sessionId) {
   const session = getOwnedSession(userId, sessionId);
   if (session.status === "scored") {
-    return store.feedbacks.get(sessionId);
+    return withCritiques(store.feedbacks.get(sessionId), session);
   }
   if (session.turns.length === 0) {
     throw httpError(400, "cannot finish a session with no answers");
@@ -114,7 +171,18 @@ function finishSession(userId, sessionId) {
   session.endedAt = new Date().toISOString();
   store.sessions.set(sessionId, session);
   store.feedbacks.set(sessionId, feedback);
-  return feedback;
+  return withCritiques(feedback, session);
+}
+
+// Per-answer reviews live on the turns, not in the stored feedback, so a review that finishes
+// after scoring still shows up the next time the feedback is read.
+function withCritiques(feedback, session) {
+  if (!feedback) return feedback;
+  return {
+    ...feedback,
+    critiquesPending: pendingCritiques.has(session.id),
+    highlights: feedback.highlights.map((h, i) => ({ ...h, critique: session.turns[i]?.critique || null })),
+  };
 }
 
 function getSession(userId, sessionId) {
@@ -124,16 +192,17 @@ function getSession(userId, sessionId) {
 }
 
 function getFeedback(userId, sessionId) {
-  getOwnedSession(userId, sessionId); // ownership check
+  const session = getOwnedSession(userId, sessionId);
   const feedback = store.feedbacks.get(sessionId);
   if (!feedback) throw httpError(404, "feedback not available yet, finish the session first");
-  return feedback;
+  return withCritiques(feedback, session);
 }
 
 function removeSessionData(sessionId) {
   store.sessions.delete(sessionId);
   store.feedbacks.delete(sessionId);
   store.sessionChats.delete(sessionId);
+  pendingCritiques.delete(sessionId);
 }
 
 function deleteSession(userId, sessionId) {
@@ -180,7 +249,8 @@ function toPublicSession(session) {
     id: session.id,
     scenarioId: session.scenarioId,
     status: session.status,
-    turns: session.turns,
+    // Reviews quote the question bank's key points, so they are shown only after scoring.
+    turns: session.status === "scored" ? session.turns : session.turns.map(({ critique, ...turn }) => turn),
     startedAt: session.startedAt,
     endedAt: session.endedAt,
   };
@@ -190,6 +260,7 @@ module.exports = {
   startSession,
   submitAnswer,
   answerTurn,
+  waitForCritiques,
   finishSession,
   getSession,
   getFeedback,
