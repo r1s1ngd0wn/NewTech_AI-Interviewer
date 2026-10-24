@@ -1,0 +1,122 @@
+[
+  {
+    "id": "scn_swe_junior_behavioral",
+    "title": "Junior Software Engineer - Behavioral",
+    "industry": "Technology",
+    "seniority": "Junior",
+    "questionType": "Behavioral",
+    "persona": "A professional and supportive technology interviewer.",
+    "questions": [
+      {
+        "id": "q_swe_junior_1",
+        "text": "Tell me about yourself and why you are interested in this software engineering role.",
+        "keywords": ["experience", "software", "role", "interested"]
+      },
+      {
+        "id": "q_swe_junior_2",
+        "text": "Tell me about a time you disagreed with a teammate. How did you handle it?",
+        "keywords": ["teammate", "disagreed", "listened", "solution"]
+      },
+      {
+        "id": "q_swe_junior_3",
+        "text": "Describe a project you are proud of and explain your contribution.",
+        "keywords": ["project", "contribution", "result", "learned"]
+      },
+      {
+        "id": "q_swe_junior_4",
+        "text": "How do you organize your work when deadlines are tight?",
+        "keywords": ["prioritize", "deadline", "communicate", "tasks"]
+      }
+    ]
+  },
+  {
+    "id": "scn_swe_mid_technical",
+    "title": "Mid-Level Software Engineer - Technical",
+    "industry": "Technology",
+    "seniority": "Mid-level",
+    "questionType": "Technical",
+    "persona": "A precise senior engineer conducting a structured technical interview.",
+    "questions": [
+      {
+        "id": "q_swe_mid_1",
+        "text": "How would you design a REST API for a service that manages interview sessions?",
+        "keywords": ["endpoint", "resource", "authentication", "status"]
+      },
+      {
+        "id": "q_swe_mid_2",
+        "text": "Explain how you diagnose and improve a slow web application.",
+        "keywords": ["measure", "profiling", "database", "performance"]
+      },
+      {
+        "id": "q_swe_mid_3",
+        "text": "Describe how you would keep data consistent when several operations must succeed together.",
+        "keywords": ["transaction", "rollback", "consistency", "failure"]
+      },
+      {
+        "id": "q_swe_mid_4",
+        "text": "How do you review code and decide whether it is ready for production?",
+        "keywords": ["tests", "security", "readability", "monitoring"]
+      }
+    ]
+  },
+  {
+    "id": "scn_marketing_junior_situational",
+    "title": "Junior Marketing Associate - Situational",
+    "industry": "Marketing",
+    "seniority": "Junior",
+    "questionType": "Situational",
+    "persona": "A friendly and casual interviewer at a growing startup.",
+    "questions": [
+      {
+        "id": "q_marketing_junior_1",
+        "text": "A campaign is receiving fewer clicks than expected. What would you do first?",
+        "keywords": ["data", "audience", "message", "test"]
+      },
+      {
+        "id": "q_marketing_junior_2",
+        "text": "How would you promote a new product with a very limited budget?",
+        "keywords": ["target", "channel", "content", "budget"]
+      },
+      {
+        "id": "q_marketing_junior_3",
+        "text": "A stakeholder asks for a last-minute campaign change. How would you respond?",
+        "keywords": ["clarify", "impact", "priority", "communicate"]
+      },
+      {
+        "id": "q_marketing_junior_4",
+        "text": "How would you measure whether a social media campaign was successful?",
+        "keywords": ["goal", "metric", "engagement", "conversion"]
+      }
+    ]
+  },
+  {
+    "id": "scn_finance_senior_behavioral",
+    "title": "Senior Financial Analyst - Behavioral",
+    "industry": "Finance",
+    "seniority": "Senior",
+    "questionType": "Behavioral",
+    "persona": "A formal finance director focused on judgment, leadership, and measurable outcomes.",
+    "questions": [
+      {
+        "id": "q_finance_senior_1",
+        "text": "Tell me about a financial recommendation you made that influenced a major business decision.",
+        "keywords": ["analysis", "recommendation", "decision", "result"]
+      },
+      {
+        "id": "q_finance_senior_2",
+        "text": "Describe a time you discovered an important error or risk in a financial model.",
+        "keywords": ["risk", "model", "validated", "corrected"]
+      },
+      {
+        "id": "q_finance_senior_3",
+        "text": "How have you explained complex financial information to a non-financial stakeholder?",
+        "keywords": ["stakeholder", "simple", "context", "decision"]
+      },
+      {
+        "id": "q_finance_senior_4",
+        "text": "Tell me about a time you led an analysis under significant time pressure.",
+        "keywords": ["led", "prioritized", "deadline", "outcome"]
+      }
+    ]
+  }
+]

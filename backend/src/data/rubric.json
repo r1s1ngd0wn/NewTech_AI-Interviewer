@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "criteria": [
+    {
+      "id": "fluency",
+      "name": "Fluency & Delivery",
+      "description": "Measures answer completeness and penalizes excessive filler words.",
+      "bands": [
+        { "band": 5, "label": "Excellent", "min": 85 },
+        { "band": 4, "label": "Strong", "min": 70 },
+        { "band": 3, "label": "Developing", "min": 50 },
+        { "band": 2, "label": "Limited", "min": 30 },
+        { "band": 1, "label": "Needs improvement", "min": 0 }
+      ]
+    },
+    {
+      "id": "relevance",
+      "name": "Relevance & Content",
+      "description": "Measures how directly the answer addresses the question's expected topics.",
+      "bands": [
+        { "band": 5, "label": "Excellent", "min": 85 },
+        { "band": 4, "label": "Strong", "min": 70 },
+        { "band": 3, "label": "Developing", "min": 50 },
+        { "band": 2, "label": "Limited", "min": 30 },
+        { "band": 1, "label": "Needs improvement", "min": 0 }
+      ]
+    },
+    {
+      "id": "vocabulary_grammar",
+      "name": "Vocabulary & Grammar",
+      "description": "Estimates vocabulary variety and language complexity using deterministic text metrics.",
+      "bands": [
+        { "band": 5, "label": "Excellent", "min": 85 },
+        { "band": 4, "label": "Strong", "min": 70 },
+        { "band": 3, "label": "Developing", "min": 50 },
+        { "band": 2, "label": "Limited", "min": 30 },
+        { "band": 1, "label": "Needs improvement", "min": 0 }
+      ]
+    },
+    {
+      "id": "structure",
+      "name": "Structure & Logic",
+      "description": "Measures sentence structure and the use of logical or STAR-style transitions.",
+      "bands": [
+        { "band": 5, "label": "Excellent", "min": 85 },
+        { "band": 4, "label": "Strong", "min": 70 },
+        { "band": 3, "label": "Developing", "min": 50 },
+        { "band": 2, "label": "Limited", "min": 30 },
+        { "band": 1, "label": "Needs improvement", "min": 0 }
+      ]
+    }
+  ]
+}
