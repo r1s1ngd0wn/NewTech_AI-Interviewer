@@ -10,4 +10,4 @@
 | AI logs | aiTelemetry, pricing.json, requestContext; existing chat/reaction/embedding hooks | unified-ai-logs tests; reconciliation verified in `MERGE_VERIFICATION_2026-10-25.md` (137/137 legacy rows copied, no missing IDs); real log persistence smoke passed |
 | Deploy | render.yaml, frontend/vercel.json, Docker build args, .env.example, DUC_SETUP | frontend build; actual cloud/Docker deployment pending access/runtime |
 
-Team boundary: usage dashboard/history/structured critique UI remain Khoa's modules; transcript retrieval/unified RAG and privacy remain Long's. The AI JSON helper is provided for Khoa to consume; it does not implement or claim his critique feature.
+Team boundary: usage dashboard/history and structured critique remain Khoa's modules; this integration includes the Admin usage/log pages and unified summary API documented in `AI_USAGE.md`. Transcript retrieval/unified RAG and privacy remain Long's. The AI JSON helper is provided for Khoa to consume; it does not implement or claim his critique feature.

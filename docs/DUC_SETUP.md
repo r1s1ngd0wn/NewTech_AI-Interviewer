@@ -33,7 +33,7 @@ For a disposable preview without cloud credentials, set `STORE_BACKEND=memory` i
 
 Set `TEST_USER_EMAIL` and a unique `TEST_USER_PASSWORD` (12+ characters) in backend/.env. Run `npm.cmd run seed:auth` from backend. This creates a confirmed Supabase email/password account; it does not change an existing account or print its password. Record demo credentials privately, never in a public README.
 
-After the first real admin has signed up and verified their email, set `ADMIN_EMAILS` to a comma-separated allowlist and run `npm.cmd run bootstrap:admins` from backend. It grants existing verified accounts admin through the trusted database connection. The HTTP API never accepts role edits. The Admin landing route and middleware are implemented; Khoa's usage dashboard is intentionally not implemented here.
+After the first real admin has signed up and verified their email, set `ADMIN_EMAILS` to a comma-separated allowlist and run `npm.cmd run bootstrap:admins` from backend. It grants existing verified accounts admin through the trusted database connection. The HTTP API never accepts role edits. The Admin landing route, usage dashboard and AI log pages are implemented. Khoa's ownership of dashboard/history and structured critique remains unchanged; this integration's unified usage summary and log viewer are recorded in `AI_USAGE.md`.
 
 Existing legacy `user_...` accounts are not automatically merged with OAuth accounts by matching email. New Auth UUIDs start with their own data. Preserving old accounts requires a separately reviewed mapping and migration covering sessions, documents, chunks and Storage paths.
 

@@ -122,7 +122,7 @@ function MarkdownBlock({ block }) {
     return <Tag>{block.items.map((item, index) => <li key={index}><InlineMarkdown text={item} /></li>)}</Tag>;
   }
   if (block.type === 'table') {
-    const rows = block.rows.filter((row, index) => !(index === 1 && row.every(cell => /^:?-{3,}:?$/.test(cell))));
+    const rows = block.rows.filter((row, index) => !(index === 1 && row.every(cell => /^:?-+:?$/.test(cell))));
     const [header, ...body] = rows;
     return <div className="admin-usage-table-wrap"><table className="admin-usage-table">
       {header && <thead><tr>{header.map((cell, index) => <th scope="col" key={index}><InlineMarkdown text={cell} /></th>)}</tr></thead>}
