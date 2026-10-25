@@ -5,3 +5,6 @@
 /Dockerfile
 /.claude
 /.env
+*.log
+/supabase/.temp/
+/.audit/

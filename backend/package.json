@@ -12,7 +12,11 @@
     "check:schema": "node scripts/checkSchema.js",
     "migrate:documents": "node scripts/migrateDocuments.js",
     "smoke:documents": "node scripts/smokeDocuments.js",
-    "check:model-stream": "node scripts/checkModelStream.js"
+    "check:model-stream": "node scripts/checkModelStream.js",
+    "seed:auth": "node scripts/seedSupabaseUser.js",
+    "bootstrap:admins": "node scripts/bootstrapAdmins.js",
+    "eval:duc": "node eval/runDuc.js",
+    "eval:duc:live": "node eval/runDucLive.js"
   },
   "engines": {
     "node": ">=22.5.0"
@@ -26,5 +30,9 @@
     "multer": "^2.5.0",
     "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "@electric-sql/pglite-pgvector": "^0.0.12"
   }
 }

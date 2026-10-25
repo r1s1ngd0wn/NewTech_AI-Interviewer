@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -14,5 +14,6 @@ export default function ProtectedRoute({ children }) {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+  if (role && user.role !== role) return <div className="page container" role="alert">You do not have permission to view this page.</div>;
   return children;
 }

@@ -1,0 +1,14 @@
+const router = require('express').Router();
+const requireAuth = require('../middleware/requireAuth');
+const { createPlanService, memory } = require('../services/planService');
+router.use(requireAuth);
+router.use((req, res, next) => { req.plans = req.db ? createPlanService(req.db) : memory; next(); });
+const handle = fn => async (req, res, next) => { try { await fn(req, res); } catch (e) { next(e); } };
+router.get('/', handle(async (req, res) => res.json({ plans: await req.plans.list(req.user.id) })));
+router.post('/', handle(async (req, res) => res.status(201).json({ plan: await req.plans.create(req.user.id, req.body) })));
+router.patch('/:id', handle(async (req, res) => res.json({ plan: await req.plans.update(req.user.id, req.params.id, req.body) })));
+router.delete('/:id', handle(async (req, res) => { await req.plans.delete(req.user.id, req.params.id); res.status(204).end(); }));
+router.post('/:id/items', handle(async (req, res) => res.status(201).json({ item: await req.plans.addItem(req.user.id, req.params.id, req.body) })));
+router.patch('/items/:id', handle(async (req, res) => res.json({ item: await req.plans.updateItem(req.user.id, req.params.id, req.body) })));
+router.delete('/items/:id', handle(async (req, res) => { await req.plans.deleteItem(req.user.id, req.params.id); res.status(204).end(); }));
+module.exports = router;

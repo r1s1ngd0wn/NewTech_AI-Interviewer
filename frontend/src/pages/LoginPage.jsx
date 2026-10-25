@@ -12,7 +12,8 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { login, register, user } = useAuth();
+  const { login, loginGoogle, register, user, authError } = useAuth();
+  const [notice, setNotice] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,7 +35,8 @@ export default function LoginPage() {
       if (mode === "login") {
         await login(email, password);
       } else {
-        await register(email, password, name);
+        const result = await register(email, password, name);
+        if (result?.confirmationRequired) setNotice('Check your email to confirm your account, then log in.');
       }
     } catch (err) {
       setError(err.message);
@@ -66,13 +68,19 @@ export default function LoginPage() {
             after each session.
           </p>
 
-          {error && (
+          {(error || authError) && (
             <div className="form-error" role="alert">
               <AlertIcon width={16} height={16} />
-              <span>{error}</span>
+              <span>{error || authError}</span>
             </div>
           )}
 
+          {notice && <p role="status">{notice}</p>}
+          <button type="button" className="btn btn-secondary btn-block" disabled={submitting} onClick={async () => {
+            setError(''); setSubmitting(true);
+            try { await loginGoogle(); } catch (err) { setError(err.message); } finally { setSubmitting(false); }
+          }}>Đăng nhập với Google</button>
+          <p className="text-center">or use email</p>
           <form onSubmit={handleSubmit} noValidate>
             {mode === "register" && (
               <div className="field">

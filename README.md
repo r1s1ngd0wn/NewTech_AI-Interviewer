@@ -1,5 +1,18 @@
 # InterviewAI
 
+## Person 3 implementation (Long_RAG integration)
+
+For current Supabase Auth/Google login, roles, agent tools with confirmation,
+practice plans, AI logging/fallback, test accounts and Render/Vercel setup, use
+[DUC_SETUP.md](docs/DUC_SETUP.md). It supersedes the legacy token-auth and local-model
+instructions below. Persistent environments now use Supabase Auth; the old fixed
+login is only for explicit memory preview. New Auth users do not inherit legacy
+account data by email. All schema changes are tracked in `supabase/migrations/`.
+
+Verification: `npm test --prefix backend`, `npm run build --prefix frontend`,
+`npm run eval:duc --prefix backend`. Cloud login/deploy and live eval require provider
+configuration; local tests are not evidence that those external steps have run.
+
 An interview practice app with account/profile, scenario selection, optional CV/job-description
 upload before the interview, a live spoken session, rubric-based scoring, feedback report,
 a post-interview chat, and progress tracking.

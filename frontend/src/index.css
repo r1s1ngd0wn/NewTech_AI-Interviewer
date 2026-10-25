@@ -904,3 +904,16 @@ p {
   text-align: center;
   padding: var(--spacing-48) var(--spacing-16);
 }
+/* Practice plans and explicit agent confirmation */
+.ai-banner { padding: .75rem 1rem; background: #fff4d6; color: #543c00; text-align: center; }
+.plan-card, .action-card { padding: 1.25rem; margin: 1rem 0; border: 1px solid #cbd5e1; border-radius: 12px; background: var(--surface, #fff); color: var(--text, #172033); }
+.action-card { border-left: 4px solid #5471dc; }
+.plan-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.plan-actions > input { flex: 1; min-width: 10rem; }
+.plan-item-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; width: 100%; margin-top: 1rem; }
+.plan-item-form label, .plans-page > section > label { display: flex; flex-direction: column; gap: .35rem; }
+.plan-item-form input, .plan-item-form select, .plan-actions input, .plans-page input { max-width: 100%; padding: .65rem; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+.plan-items { list-style: none; padding: 0; }
+.plan-items > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #e2e8f0; }
+.plan-items details { font-size: .8rem; overflow-wrap: anywhere; }
+.tool-label { display: inline-block; margin-right: .5rem; }

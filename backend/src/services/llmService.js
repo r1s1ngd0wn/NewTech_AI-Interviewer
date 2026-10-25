@@ -10,6 +10,7 @@
 // logged or included in error messages.
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const { trackAiRequest, createRequestLog } = require('./aiTelemetry');
 // "gemini-flash-latest" is Google's alias for the current flash model, so the default does not
 // break when a specific version is retired (gemini-2.5-flash already was for new keys).
 const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
@@ -45,7 +46,7 @@ function thinkingBudget() {
 function provider() {
   const explicit = env("LLM_PROVIDER").toLowerCase();
   if (explicit === "none") return null;
-  if (explicit === "local") return "local";
+  if (explicit === "local") return process.env.STORE_BACKEND === 'memory' && process.env.NODE_ENV !== 'production' ? "local" : null;
   return env("GEMINI_API_KEY") ? "gemini" : null;
 }
 
@@ -115,7 +116,7 @@ async function postJson({ url, headers, body, timeoutMs, timeoutMessage, unreach
 
 // ---- Gemini ----------------------------------------------------------------------------
 
-async function generateGemini({ system, messages, temperature, maxOutputTokens, timeoutMs }) {
+async function generateGemini({ system, messages, temperature, maxOutputTokens, timeoutMs, meta }) {
   const apiKey = env("GEMINI_API_KEY");
   const model = env("GEMINI_MODEL") || DEFAULT_GEMINI_MODEL;
   const budget = thinkingBudget();
@@ -135,8 +136,8 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
       ...(withThinking && budget !== null ? { thinkingConfig: { thinkingBudget: budget } } : {}),
     },
   });
-  const send = (withThinking) =>
-    postJson({
+  const send = (withThinking) => trackAiRequest({ ...meta, model }, async note => {
+    const result = await postJson({
       url: `${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent`,
       headers: { "x-goog-api-key": apiKey },
       body: buildBody(withThinking),
@@ -144,6 +145,15 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
       timeoutMessage: "the Gemini request timed out",
       unreachableMessage: "could not reach the Gemini API",
     });
+    note({ usage: result.data?.usageMetadata, provider_status: result.res.status,
+      ...(result.data?.modelVersion ? { model: result.data.modelVersion } : {}),
+      ...(!result.res.ok ? { status: 'error', error_code: 'http_error' } : {}) });
+    if (result.data?.promptFeedback?.blockReason) note({ status: 'refused', error_code: 'provider_blocked' });
+    else if (result.res.ok && !(result.data?.candidates?.[0]?.content?.parts || []).some(p => !p.thought && p.text?.trim())) {
+      throw Object.assign(new LlmError('Gemini returned an empty answer'), { code: 'empty_response' });
+    }
+    return result;
+  });
 
   let { res, data } = await send(true);
   // Some models (for example pro-tier ones) cannot switch thinking off; retry without the setting.
@@ -152,8 +162,8 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
   }
 
   if (!res.ok) {
-    const detail = data?.error?.message ? `: ${String(data.error.message).slice(0, 140)}` : "";
-    throw new LlmError(`Gemini returned ${res.status}${detail}`, { status: res.status });
+    const safeDetail = /api key.*not valid/i.test(data?.error?.message || '') ? ': API key not valid.' : '';
+    throw new LlmError(`Gemini returned ${res.status}${safeDetail}`, { status: res.status });
   }
   if (data?.promptFeedback?.blockReason) {
     throw new LlmError(`Gemini blocked the request (${data.promptFeedback.blockReason})`);
@@ -234,10 +244,10 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
 
 // ---- public ----------------------------------------------------------------------------
 
-async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs }) {
+async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs, meta }) {
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
-  const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs() };
+  const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(), meta };
   const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
   // The app never shows em/en dashes; models like to write them.
   return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
@@ -300,15 +310,19 @@ function reasoningFilter() {
   };
 }
 
-async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal }) {
+async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, meta }) {
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), defaultTimeoutMs());
-  if (signal) signal.addEventListener("abort", () => controller.abort(), { once: true });
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
   const turns = normalizeTurns(messages);
   const filter = reasoningFilter();
   const budget = active === "gemini" ? thinkingBudget() : null;
+  let log = createRequestLog({ ...meta, model: status().model, provider: active, signal });
+  let failure;
+  let visibleText = '';
   try {
     let url;
     let headers = { "Content-Type": "application/json" };
@@ -337,31 +351,61 @@ async function* generateStream({ system, messages, temperature = 0.2, maxOutputT
     if (active === "gemini" && response.status === 400 && budget !== null) {
       const detail = await response.json().catch(() => ({}));
       if (/think/i.test(detail?.error?.message || "")) {
+        await log.finish(new LlmError('thinking configuration rejected', { status: 400 }));
+        log = createRequestLog({ ...meta, model: status().model, provider: active, signal });
         delete body.generationConfig.thinkingConfig;
         response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
       }
     }
-    if (!response.ok || !response.body) throw new LlmError(`${active} stream returned ${response.status}`);
+    if (!response.ok || !response.body) throw new LlmError(`${active} stream returned ${response.status}`, { status: response.status });
     for await (const data of parseSse(response.body)) {
       if (data === "[DONE]") break;
       let event;
       try { event = JSON.parse(data); } catch { continue; }
+      if (event.usageMetadata) log.note({ usage: event.usageMetadata });
+      if (event.modelVersion) log.note({ model: event.modelVersion });
+      if (event.error) throw new LlmError('the Gemini stream failed', { status: event.error.code });
       const token = active === "gemini"
         ? (event.candidates?.[0]?.content?.parts || []).filter((part) => part.thought !== true).map((part) => part.text || "").join("")
         : event.choices?.[0]?.delta?.content;
       if (token) {
+        visibleText += token;
         const visible = filter.push(token);
         if (visible) yield visible.replace(/\s*[–—]\s*/g, (part) => (/\s/.test(part) ? " - " : "-"));
       }
     }
     const tail = filter.finish();
     if (tail) yield tail;
+    if (!visibleText.trim()) throw Object.assign(new LlmError('the AI returned an empty answer'), { code: 'empty_response' });
   } catch (error) {
+    failure = error;
     if (error.name === "AbortError") throw new LlmError("the LLM stream timed out or was cancelled");
     throw error;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
+    await log.finish(failure);
   }
 }
 
-module.exports = { generate, generateStream, parseSse, reasoningFilter, isEnabled, status, reactionTimeoutMs, LlmError };
+const generateWithTools = options => require('./geminiClient').requestJson(options);
+async function generateJson({ system, messages = [], contents, responseSchema, validate, schema, fallback, signal, model, meta = {} }) {
+  const turns = contents || normalizeTurns(messages).map(t => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] }));
+  let failure;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await require('./geminiClient').requestJson({ system, contents: turns, responseSchema, signal, model,
+        meta: { ...meta, capability: meta.capability || 'critique' }, validateOutput: text => {
+          const json = JSON.parse(text); return validate ? validate(json) : schema ? schema.parse(json) : json;
+        } });
+      return result.value;
+    } catch (error) {
+      failure = error;
+      if (signal?.aborted || error.code !== 'invalid_json') break;
+      turns.push({ role: 'model', parts: [{ text: 'Invalid JSON output.' }] }, { role: 'user', parts: [{ text: 'The output failed JSON/schema validation. Return only valid JSON matching the requested schema.' }] });
+    }
+  }
+  if (fallback !== undefined && !signal?.aborted) return typeof fallback === 'function' ? fallback() : fallback;
+  throw failure;
+}
+module.exports = { generate, generateStream, stream: generateStream, generateJson, generateWithTools, parseSse, reasoningFilter, isEnabled, status, reactionTimeoutMs, LlmError };

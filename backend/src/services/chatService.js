@@ -282,10 +282,11 @@ async function groundedReply(context, recent) {
   const sources = quotableText(context);
   const messages = recent.map((m) => ({ role: m.role, text: m.text }));
 
-  let text = await llmService.generate({ system, messages });
+  let text = await llmService.generate({ system, messages, meta: { capability: 'coach', prompt_name: 'session-chat', prompt_version: 'long-v1' } });
   let bad = findUngroundedQuotes(text, sources);
   if (bad.length) {
     text = await llmService.generate({
+      meta: { capability: 'coach', prompt_name: 'session-chat', prompt_version: 'long-v1' },
       system,
       messages: [
         ...messages,
@@ -341,7 +342,7 @@ async function retrievedReply(message, matches) {
     "Plain text, under 150 words. When using a source, mention its [number].",
     ...matches.map((match, index) => `[${index + 1}] ${match.label}: ${inputGuard.sanitizeSourceText(match.text)}`),
   ].join("\n\n");
-  return (await llmService.generate({ system, messages: [{ role: "user", text: message }], temperature: 0.2 })).slice(0, MAX_REPLY_LENGTH);
+  return (await llmService.generate({ system, messages: [{ role: "user", text: message }], temperature: 0.2, meta: { capability: 'coach', prompt_name: 'session-rag', prompt_version: 'long-v1' } })).slice(0, MAX_REPLY_LENGTH);
 }
 
 async function postMessage(userId, sessionId, message) {
@@ -449,7 +450,7 @@ async function streamMessage(userId, sessionId, message, onEvent, signal) {
       }
       if (system) {
         if (sources.length) onEvent({ type: "sources", sources });
-        for await (const token of llmService.generateStream({ system, messages: [{ role: "user", text: userMsg.text }], signal })) {
+        for await (const token of llmService.generateStream({ system, messages: [{ role: "user", text: userMsg.text }], signal, meta: { capability: 'coach', prompt_name: 'session-rag', prompt_version: 'long-v1' } })) {
           const remaining = MAX_REPLY_LENGTH - reply.length;
           if (remaining <= 0) break;
           const part = token.slice(0, remaining);

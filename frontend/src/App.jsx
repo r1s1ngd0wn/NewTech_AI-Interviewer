@@ -10,6 +10,7 @@ import DashboardPage from "./pages/DashboardPage.jsx";
 import DocumentsPage from "./pages/DocumentsPage.jsx";
 import CoachPage from "./pages/CoachPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
+import PlanPage from './pages/PlanPage.jsx';
 
 export default function App() {
   return (
@@ -22,6 +23,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/scenarios" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/plans" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
+          <Route path="/admin/*" element={<ProtectedRoute role="admin"><div className="page container"><h1>Admin</h1><p>Administrator access is enabled.</p></div></ProtectedRoute>} />
           <Route
             path="/onboarding"
             element={

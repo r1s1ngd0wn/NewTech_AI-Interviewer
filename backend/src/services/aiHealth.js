@@ -1,0 +1,15 @@
+let observation = null;
+let keyAtObservation = null;
+function recordSuccess() { keyAtObservation = process.env.GEMINI_API_KEY; observation = { state: 'available', available: true, reason: null, checkedAt: new Date().toISOString() }; }
+function recordFailure(error) {
+  keyAtObservation = process.env.GEMINI_API_KEY;
+  observation = { state: 'unavailable', available: false,
+    reason: error.upstreamStatus === 429 ? 'quota' : error.upstreamStatus === 401 || error.upstreamStatus === 403 || error.upstreamStatus === 400 ? 'configuration'
+      : error.name === 'AbortError' || /timed out|timeout/i.test(error.message || '') ? 'timeout' : 'provider_error', checkedAt: new Date().toISOString() };
+}
+function status() {
+  if (!process.env.GEMINI_API_KEY || process.env.LLM_PROVIDER === 'none') return { state: 'unconfigured', available: false, reason: 'not_configured', checkedAt: null };
+  if (keyAtObservation !== process.env.GEMINI_API_KEY) return { state: 'unknown', available: null, reason: 'not_checked', checkedAt: null };
+  return observation || { state: 'unknown', available: null, reason: 'not_checked', checkedAt: null };
+}
+module.exports = { recordSuccess, recordFailure, status };

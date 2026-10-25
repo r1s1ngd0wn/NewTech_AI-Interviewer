@@ -1,8 +1,13 @@
 const TOKEN_KEY = "interviewai.token";
+import { supabase, previewAuth } from './supabase.js';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 export const AUTH_EXPIRED_EVENT = "interviewai:auth-expired";
 
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+export async function getToken() {
+  if (previewAuth) return localStorage.getItem(TOKEN_KEY);
+  const { data, error } = supabase ? await supabase.auth.getSession() : { data: {} };
+  if (error) throw error;
+  return data.session?.access_token || null;
 }
 
 export function setToken(token) {
@@ -14,11 +19,11 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   const isFormData = body instanceof FormData;
   const headers = isFormData ? {} : { "Content-Type": "application/json" };
   if (auth) {
-    const token = getToken();
+    const token = await getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
     body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
@@ -39,8 +44,8 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
 }
 
 async function streamRequest(path, message, onEvent, signal) {
-  const token = getToken();
-  const res = await fetch(`/api${path}`, {
+  const token = await getToken();
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ message }),
@@ -124,6 +129,16 @@ export const api = {
   deleteDocument: (id) => request(`/documents/${id}`, { method: "DELETE" }),
   streamCoachMessage: (message, onEvent, signal) =>
     streamRequest("/coach/chat", message, onEvent, signal),
+  confirmAction: id => request(`/coach/actions/${id}/confirm`, { method: 'POST' }),
+  cancelAction: id => request(`/coach/actions/${id}/cancel`, { method: 'POST' }),
+  listPlans: () => request('/plans'),
+  createPlan: body => request('/plans', { method: 'POST', body }),
+  updatePlan: (id, body) => request(`/plans/${id}`, { method: 'PATCH', body }),
+  deletePlan: id => request(`/plans/${id}`, { method: 'DELETE' }),
+  addPlanItem: (id, body) => request(`/plans/${id}/items`, { method: 'POST', body }),
+  updatePlanItem: (id, body) => request(`/plans/items/${id}`, { method: 'PATCH', body }),
+  deletePlanItem: id => request(`/plans/items/${id}`, { method: 'DELETE' }),
+  aiHealth: () => request('/health/ai', { auth: false }),
   listSessionDocuments: (id) => request(`/sessions/${id}/documents`),
   uploadSessionDocument: (id, file) => {
     const body = new FormData();

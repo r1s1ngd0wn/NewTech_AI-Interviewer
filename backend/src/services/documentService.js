@@ -13,6 +13,13 @@ const MAX_PAGES = 20;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 let storageClient;
 
+function assertStorageOwner(userId, storagePath) {
+  if (typeof storagePath !== 'string' || storagePath.split('/')[0] !== userId ||
+      storagePath.split('/').some(segment => !segment || segment === '.' || segment === '..') || storagePath.includes('\\')) {
+    throw httpError(404, 'document not found');
+  }
+}
+
 function storage() {
   const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!process.env.SUPABASE_URL || !secretKey) {
@@ -70,6 +77,7 @@ async function exportDocuments(userId, sessionId) {
     FROM interviewai_documents WHERE user_id = $1 AND session_id = $2 ORDER BY created_at`, [userId, sessionId]);
   const documents = [];
   for (const row of result.rows) {
+    assertStorageOwner(userId, row.storage_path);
     const { data, error } = await storage().download(row.storage_path);
     if (error) throw new Error(`Could not export ${row.filename}: ${error.message}`);
     documents.push({
@@ -122,6 +130,7 @@ async function deleteDocument(userId, sessionId, documentId) {
     WHERE id = $1 AND user_id = $2 AND session_id = $3`, [documentId, userId, sessionId]);
   const storagePath = result.rows[0]?.storage_path;
   if (!storagePath) throw httpError(404, "document not found");
+  assertStorageOwner(userId, storagePath);
   const { error } = await storage().remove([storagePath]);
   if (error) throw new Error(`Supabase Storage deletion failed: ${error.message}`);
   await getPool().query("DELETE FROM interviewai_rag_chunks WHERE document_id = $1", [documentId]);
@@ -193,6 +202,7 @@ async function deleteUserDocument(userId, documentId) {
     WHERE id = $1 AND user_id = $2`, [documentId, userId]);
   const storagePath = result.rows[0]?.storage_path;
   if (!storagePath) throw httpError(404, "document not found");
+  assertStorageOwner(userId, storagePath);
   const { error } = await storage().remove([storagePath]);
   if (error) throw new Error(`Supabase Storage deletion failed: ${error.message}`);
   await getPool().query("DELETE FROM interviewai_user_documents WHERE id = $1 AND user_id = $2", [documentId, userId]);
@@ -207,6 +217,7 @@ async function exportUserDocuments(userId) {
     extracted_text, created_at FROM interviewai_user_documents WHERE user_id = $1`, [userId]);
   const documents = [];
   for (const row of result.rows) {
+    assertStorageOwner(userId, row.storage_path);
     const { data, error } = await storage().download(row.storage_path);
     if (error) throw new Error(`Could not export ${row.filename}: ${error.message}`);
     documents.push({ id: row.id, kind: row.kind, filename: row.filename,

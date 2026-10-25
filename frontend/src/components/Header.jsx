@@ -1,17 +1,20 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useState } from 'react';
+import AiStatusBanner from './AiStatusBanner.jsx';
 
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [error, setError] = useState('');
 
   async function handleLogout() {
-    await logout();
-    navigate("/login");
+    try { await logout(); navigate('/login'); }
+    catch (err) { setError(err.message); }
   }
 
   return (
-    <header className="site-header">
+    <><AiStatusBanner /><header className="site-header">
       <div className="container">
         <NavLink to="/" className="brand" aria-label="InterviewAI home">
           InterviewAI
@@ -31,6 +34,8 @@ export default function Header() {
             <NavLink to="/coach" className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`}>
               Coach
             </NavLink>
+            <NavLink to="/plans" className={({ isActive }) => `nav-pill ${isActive ? 'active' : ''}`}>Plans</NavLink>
+            {user.role === 'admin' && <NavLink to="/admin" className="nav-pill">Admin</NavLink>}
             <NavLink to="/onboarding" className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`}>
               Profile
             </NavLink>
@@ -52,6 +57,6 @@ export default function Header() {
           )}
         </div>
       </div>
-    </header>
+    </header>{error && <div className="form-error" role="alert">{error}</div>}</>
   );
 }

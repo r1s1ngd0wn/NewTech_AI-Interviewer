@@ -13,10 +13,15 @@ const { seedTestAccount } = require("./db/seed");
 const { purgeStaleSessions } = require("./services/sessionService");
 const { checkConnection } = require("./db/postgres");
 const { securityHeaders, rateLimit } = require("./middleware/security");
+const { randomUUID } = require('node:crypto');
+const requestContext = require('./context/requestContext');
+const requireAuth = require('./middleware/requireAuth');
+const requireRole = require('./middleware/requireRole');
 
 const isProduction = process.env.NODE_ENV === "production";
 
 const app = express();
+app.use((req, res, next) => requestContext.run({ requestId: randomUUID() }, next));
 
 if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
 
@@ -25,6 +30,9 @@ app.use(securityHeaders);
 app.use(express.json({ limit: "50kb" }));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+app.get('/api/health/ai', (req, res) => res.json(require('./services/aiHealth').status()));
+app.use('/api/plans', require('./routes/plans'));
+app.use('/api/admin', requireAuth, requireRole('admin'));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 app.use("/api/auth/login", authLimiter);
@@ -35,6 +43,7 @@ app.post("/api/sessions/:id/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
 app.post("/api/sessions/:id/chat/stream", rateLimit({ windowMs: 60 * 1000, max: 20 }));
 app.post("/api/documents", rateLimit({ windowMs: 60 * 1000, max: 10 }));
 app.post("/api/coach/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
+app.use('/api/coach/actions', rateLimit({ windowMs: 60 * 1000, max: 30 }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -66,8 +75,8 @@ async function start() {
   } else {
     await checkConnection();
   }
-  // The demo login is created outside production, or when explicitly requested.
-  if (!isProduction || process.env.SEED_TEST_ACCOUNT === "true") await seedTestAccount();
+  // Persistent environments create test users explicitly through seed:auth.
+  if (process.env.STORE_BACKEND === 'memory' && !isProduction) await seedTestAccount();
   const purged = await purgeStaleSessions();
   if (purged) console.log(`Removed ${purged} abandoned interview session(s).`);
   setInterval(() => purgeStaleSessions().catch(console.error), 60 * 60 * 1000).unref();
@@ -75,7 +84,8 @@ async function start() {
   app.listen(port, () => console.log(`InterviewAI backend listening on http://localhost:${port}`));
 }
 
-start().catch((err) => {
+if (require.main === module) start().catch((err) => {
   console.error("InterviewAI backend could not start:", err.message);
   process.exitCode = 1;
 });
+module.exports = { app, start };

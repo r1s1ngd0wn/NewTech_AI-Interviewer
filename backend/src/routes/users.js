@@ -8,7 +8,8 @@ router.use(requireAuth);
 
 router.put("/me", async (req, res, next) => {
   try {
-    const user = await authService.updateProfile(req.user.id, req.body || {});
+    const user = req.db ? await require('../services/supabaseAuth').updateProfile(req.user.id, req.body || {}, req.db, req.user.email)
+      : await authService.updateProfile(req.user.id, req.body || {});
     res.json({ user });
   } catch (err) {
     next(err);

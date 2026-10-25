@@ -1,17 +1,18 @@
 const DIMENSIONS = 768;
+const { trackAiRequest } = require('./aiTelemetry');
 
 function config() {
   const provider = (process.env.EMBEDDING_PROVIDER || "").toLowerCase();
   if (provider === "gemini" && process.env.GEMINI_API_KEY) {
     return { provider, model: process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001" };
   }
-  if (provider === "local" && process.env.LOCAL_EMBEDDING_MODEL) {
+  if (provider === "local" && process.env.LOCAL_EMBEDDING_MODEL && process.env.STORE_BACKEND === 'memory' && process.env.NODE_ENV !== 'production') {
     return { provider, model: process.env.LOCAL_EMBEDDING_MODEL };
   }
   return null;
 }
 
-async function embed(text, taskType = "RETRIEVAL_DOCUMENT") {
+async function embedRequest(text, taskType = "RETRIEVAL_DOCUMENT", note = () => {}) {
   const active = config();
   if (!active) throw new Error("embedding provider is not configured");
   const controller = new AbortController();
@@ -28,8 +29,9 @@ async function embed(text, taskType = "RETRIEVAL_DOCUMENT") {
           embedContentConfig: { taskType, outputDimensionality: DIMENSIONS, autoTruncate: true } }
       : { model: active.model, input: text };
     const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
-    if (!response.ok) throw new Error(`embedding provider returned ${response.status}`);
+    if (!response.ok) throw Object.assign(new Error(`embedding provider returned ${response.status}`), { upstreamStatus: response.status });
     const data = await response.json();
+    note({ usage: data.usageMetadata, provider_status: response.status });
     const vector = active.provider === "gemini" ? data.embedding?.values : data.data?.[0]?.embedding;
     if (!Array.isArray(vector) || vector.some((value) => !Number.isFinite(value))) {
       throw new Error("embedding model returned an invalid vector");
@@ -52,4 +54,8 @@ async function embed(text, taskType = "RETRIEVAL_DOCUMENT") {
   }
 }
 
+function embed(text, taskType = 'RETRIEVAL_DOCUMENT') {
+  const active = config();
+  return trackAiRequest({ capability: 'embed', prompt_name: 'embedding', prompt_version: 'long-v1', model: active?.model, provider: active?.provider }, note => embedRequest(text, taskType, note));
+}
 module.exports = { config, embed, DIMENSIONS };

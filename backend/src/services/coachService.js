@@ -48,7 +48,7 @@ async function streamChat(userId, message, onEvent, signal) {
   ].join("\n\n");
   let draft = "";
   try {
-    for await (const token of llmService.generateStream({ system, messages: [{ role: "user", text }], signal })) {
+    for await (const token of llmService.generateStream({ system, messages: [{ role: "user", text }], signal, meta: { capability: 'coach', prompt_name: 'knowledge-coach', prompt_version: 'long-v1' } })) {
       if (signal?.aborted) return null;
       const part = token.slice(0, Math.max(0, 1500 - draft.length));
       if (!part) break;

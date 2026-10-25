@@ -1,0 +1,95 @@
+{
+  "created_at": "2026-10-25T13:44:45.879Z",
+  "prompt_version": "duc-v1",
+  "mode": "offline-contract",
+  "provider": "fixtures",
+  "latency_kind": "whole_test_process_not_provider",
+  "model_quality_evaluated": false,
+  "pass_rate": 1,
+  "latency_avg_ms": 258.625,
+  "tokens_in": 0,
+  "tokens_out": 0,
+  "cost_usd": 0,
+  "results": [
+    {
+      "id": "B-01",
+      "capability": "agent",
+      "type": "normal",
+      "pass": true,
+      "latency_ms": 420,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "B-02",
+      "capability": "agent",
+      "type": "normal",
+      "pass": true,
+      "latency_ms": 332,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "B-03",
+      "capability": "agent",
+      "type": "edge",
+      "pass": true,
+      "latency_ms": 149,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "B-04",
+      "capability": "agent",
+      "type": "edge",
+      "pass": true,
+      "latency_ms": 130,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "B-05",
+      "capability": "agent",
+      "type": "edge",
+      "pass": true,
+      "latency_ms": 277,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "B-06",
+      "capability": "agent",
+      "type": "refuse",
+      "pass": true,
+      "latency_ms": 281,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "F-01",
+      "capability": "fallback",
+      "type": "edge",
+      "pass": true,
+      "latency_ms": 294,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "F-02",
+      "capability": "fallback",
+      "type": "edge",
+      "pass": true,
+      "latency_ms": 186,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "cost_usd": 0
+    }
+  ]
+}

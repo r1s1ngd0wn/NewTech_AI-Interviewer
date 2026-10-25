@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { AlertIcon, SendIcon, StopIcon } from "../components/icons.jsx";
+import ConfirmActionCard from '../components/ConfirmActionCard.jsx';
 
 export default function CoachPage() {
   const [messages, setMessages] = useState([]);
@@ -11,6 +12,8 @@ export default function CoachPage() {
   const [sources, setSources] = useState([]);
   const [stage, setStage] = useState("");
   const [error, setError] = useState("");
+  const [actions, setActions] = useState([]);
+  const [tools, setTools] = useState([]);
   const controllerRef = useRef(null);
   const partialRef = useRef("");
   const logRef = useRef(null);
@@ -31,6 +34,7 @@ export default function CoachPage() {
     setPending("");
     setSources([]);
     setError("");
+    setTools([]);
     setStage("searching");
     partialRef.current = "";
     const controller = new AbortController();
@@ -38,6 +42,8 @@ export default function CoachPage() {
     try {
       await api.streamCoachMessage(text, (item) => {
         if (item.type === "status") setStage(item.status);
+        if (item.type === 'tool') { setStage('tool'); setTools(t => [...t, item]); }
+        if (item.type === 'action') setActions(a => [...a, item.action]);
         if (item.type === "sources") setSources(item.sources);
         if (item.type === "token") { partialRef.current += item.text; setPending(partialRef.current); }
         if (item.type === "done") {
@@ -56,6 +62,7 @@ export default function CoachPage() {
       setBusy(false);
       setStage("");
       setSources([]);
+      window.dispatchEvent(new Event('interviewai:ai-health'));
     }
   }
 
@@ -63,6 +70,7 @@ export default function CoachPage() {
     <span className="eyebrow">Interview practice</span>
     <h1>Coach</h1>
     <div className="coach-toolbar"><Link to="/documents">Your documents</Link></div>
+    {tools.length > 0 && <div className="chat-msg-note" aria-live="polite">{tools.map((tool, i) => <span key={i} className="tool-label">{tool.name}: {tool.status} </span>)}</div>}
     <div className="coach-log" ref={logRef} role="log" aria-live="polite" aria-label="Coach conversation">
       {messages.map((message, index) => <div key={index} className={`chat-msg chat-msg-${message.role}`}>
         {message.text}
@@ -73,10 +81,11 @@ export default function CoachPage() {
         </details>}
       </div>)}
       {busy && <div className="chat-msg chat-msg-assistant chat-msg-pending" role="status">
-        {pending || (stage === "searching" ? "Searching sources..." : "Writing answer...")}
+        {pending || (stage === 'tool' ? 'Calling tool...' : stage === "searching" ? "Searching sources..." : "Writing answer...")}
         {sources.length > 0 && <span className="chat-msg-note">{sources.length} sources found</span>}
       </div>}
     </div>
+    {actions.map(action => <ConfirmActionCard key={action.id} action={action} />)}
     {error && <div className="form-error" role="alert"><AlertIcon width={16} height={16} />{error}</div>}
     <form className="chat-composer" onSubmit={send}>
       <input type="text" value={draft} maxLength={500} onChange={(event) => setDraft(event.target.value)}
