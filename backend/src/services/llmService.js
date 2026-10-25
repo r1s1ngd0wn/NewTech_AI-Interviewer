@@ -1,6 +1,5 @@
-// LLM client used only for free-text replies: the post-interview chat and the interviewer's
-// short reaction. It is never used to pick questions or to score, so it cannot change what
-// the rubric decides.
+// LLM client for post-interview replies and short interviewer reactions. Interview
+// preparation retrieves document context separately; scoring remains deterministic.
 //
 // Two providers sit behind one contract, generate({ system, messages }) -> string:
 //   gemini - Google's Gemini API (needs GEMINI_API_KEY)
@@ -11,6 +10,7 @@
 // logged or included in error messages.
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const aiRequestLog = require("./aiRequestLogService");
 // "gemini-flash-latest" is Google's alias for the current flash model, so the default does not
 // break when a specific version is retired (gemini-2.5-flash already was for new keys).
 const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
@@ -235,13 +235,149 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
 
 // ---- public ----------------------------------------------------------------------------
 
-async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs }) {
+async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs, promptVersion }) {
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
   const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs() };
-  const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
-  // The app never shows em/en dashes; models like to write them.
-  return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
+  const started = Date.now();
+  let outcome = "error";
+  try {
+    const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
+    outcome = "ok";
+    return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
+  } finally {
+    const info = status();
+    await aiRequestLog.logAiRequest({ provider: active, model: info.model, operation: "chat",
+      promptVersion, durationMs: Date.now() - started, status: outcome });
+  }
 }
 
-module.exports = { generate, isEnabled, status, reactionTimeoutMs, LlmError };
+async function* parseSse(body) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for await (const chunk of body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    buffer = buffer.replace(/\r\n/g, "\n");
+    let end;
+    while ((end = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      const data = block.split("\n").filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart()).join("\n");
+      if (data) yield data;
+    }
+  }
+}
+
+function reasoningFilter() {
+  let buffer = "";
+  let hidden = false;
+  return {
+    push(text) {
+      buffer += text;
+      let visible = "";
+      while (buffer) {
+        if (hidden) {
+          const end = buffer.match(/<\/(think|thought|thinking)>/i);
+          if (!end) {
+            buffer = buffer.slice(-32);
+            break;
+          }
+          buffer = buffer.slice(end.index + end[0].length);
+          hidden = false;
+          continue;
+        }
+        const start = buffer.match(/<(think|thought|thinking)>/i);
+        if (start) {
+          visible += buffer.slice(0, start.index);
+          buffer = buffer.slice(start.index + start[0].length);
+          hidden = true;
+          continue;
+        }
+        const partial = buffer.lastIndexOf("<");
+        if (partial !== -1 && buffer.length - partial < 12) {
+          visible += buffer.slice(0, partial);
+          buffer = buffer.slice(partial);
+          break;
+        }
+        visible += buffer;
+        buffer = "";
+      }
+      return visible;
+    },
+    finish() { return hidden ? "" : buffer.replace(/<[^>]*$/, ""); },
+  };
+}
+
+async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, promptVersion }) {
+  const active = provider();
+  if (!active) throw new LlmError("the LLM is not configured");
+  const started = Date.now();
+  let outcome = "cancelled";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), defaultTimeoutMs());
+  if (signal) signal.addEventListener("abort", () => controller.abort(), { once: true });
+  const turns = normalizeTurns(messages);
+  const filter = reasoningFilter();
+  const budget = active === "gemini" ? thinkingBudget() : null;
+  try {
+    let url;
+    let headers = { "Content-Type": "application/json" };
+    let body;
+    if (active === "gemini") {
+      const model = env("GEMINI_MODEL") || DEFAULT_GEMINI_MODEL;
+      url = `${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+      headers["x-goog-api-key"] = env("GEMINI_API_KEY");
+      body = {
+        systemInstruction: { parts: [{ text: system }] },
+        contents: turns.map((turn) => ({ role: turn.role === "assistant" ? "model" : "user", parts: [{ text: turn.text }] })),
+        generationConfig: { temperature, maxOutputTokens,
+          ...(budget !== null ? { thinkingConfig: { thinkingBudget: budget } } : {}) },
+      };
+    } else {
+      const cfg = localConfig();
+      url = `${cfg.baseUrl}/chat/completions`;
+      headers = { ...headers, ...localHeaders(cfg) };
+      body = {
+        model: cfg.model || await detectLocalModel(cfg),
+        messages: [{ role: "system", content: system }, ...turns.map((turn) => ({ role: turn.role, content: turn.text }))],
+        temperature, max_tokens: maxOutputTokens, stream: true,
+      };
+    }
+    let response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
+    if (active === "gemini" && response.status === 400 && budget !== null) {
+      const detail = await response.json().catch(() => ({}));
+      if (/think/i.test(detail?.error?.message || "")) {
+        delete body.generationConfig.thinkingConfig;
+        response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
+      }
+    }
+    if (!response.ok || !response.body) throw new LlmError(`${active} stream returned ${response.status}`);
+    for await (const data of parseSse(response.body)) {
+      if (data === "[DONE]") break;
+      let event;
+      try { event = JSON.parse(data); } catch { continue; }
+      const token = active === "gemini"
+        ? (event.candidates?.[0]?.content?.parts || []).filter((part) => part.thought !== true).map((part) => part.text || "").join("")
+        : event.choices?.[0]?.delta?.content;
+      if (token) {
+        const visible = filter.push(token);
+        if (visible) yield visible.replace(/\s*[–—]\s*/g, (part) => (/\s/.test(part) ? " - " : "-"));
+      }
+    }
+    const tail = filter.finish();
+    if (tail) yield tail;
+    outcome = "ok";
+  } catch (error) {
+    outcome = signal?.aborted ? "cancelled" : "error";
+    if (error.name === "AbortError") throw new LlmError("the LLM stream timed out or was cancelled");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    const info = status();
+    await aiRequestLog.logAiRequest({ provider: active, model: info.model, operation: "chat_stream",
+      promptVersion, durationMs: Date.now() - started, status: outcome });
+  }
+}
+
+module.exports = { generate, generateStream, parseSse, reasoningFilter, isEnabled, status, reactionTimeoutMs, LlmError };

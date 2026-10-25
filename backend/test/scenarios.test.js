@@ -1,4 +1,4 @@
-process.env.DB_PATH = ":memory:";
+process.env.STORE_BACKEND = "memory";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -54,14 +54,14 @@ test("filters expose every seniority and the new question types", () => {
   assert.ok(options.questionTypes.includes("System Design"));
 });
 
-test("every scenario can be played through and scored", () => {
-  const { user } = auth.register({ email: "player@test.dev", password: "secret1", name: "Player" });
+test("every scenario can be played through and scored", async () => {
+  const { user } = await auth.register({ email: "player@test.dev", password: "secret1", name: "Player" });
   const answer =
     "I would start with the requirements, then design the data model, first handle the common case, and finally measure the result to check performance and reliability.";
   for (const s of scenarios) {
-    const { session } = sessions.startSession(user.id, s.id);
-    for (let i = 0; i < s.questions.length; i++) sessions.submitAnswer(user.id, session.id, answer);
-    const feedback = sessions.finishSession(user.id, session.id);
+    const { session } = await sessions.startSession(user.id, s.id);
+    for (let i = 0; i < s.questions.length; i++) await sessions.submitAnswer(user.id, session.id, answer);
+    const feedback = await sessions.finishSession(user.id, session.id);
     assert.equal(feedback.questionsAnswered, s.questions.length, s.id);
     assert.equal(feedback.criteria.length, 4, s.id);
     assert.ok(feedback.overallScore >= 0 && feedback.overallScore <= 100, s.id);

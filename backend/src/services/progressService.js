@@ -2,11 +2,10 @@ const store = require("../store");
 const scenarioService = require("./scenarioService");
 const sessionService = require("./sessionService");
 
-function getProgress(userId) {
-  const scored = sessionService
-    .listSessionsForUser(userId)
+async function getProgress(userId) {
+  const scoredSessions = (await sessionService.listSessionsForUser(userId))
     .filter((s) => s.status === "scored")
-    .map((s) => ({ session: s, feedback: store.feedbacks.get(s.id) }))
+  const scored = (await Promise.all(scoredSessions.map(async (s) => ({ session: s, feedback: await store.feedbacks.get(s.id) }))))
     .filter((entry) => entry.feedback)
     .sort((a, b) => new Date(a.session.startedAt) - new Date(b.session.startedAt));
 

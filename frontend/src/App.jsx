@@ -7,6 +7,8 @@ import ScenariosPage from "./pages/ScenariosPage.jsx";
 import InterviewPage from "./pages/InterviewPage.jsx";
 import FeedbackPage from "./pages/FeedbackPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
+import DocumentsPage from "./pages/DocumentsPage.jsx";
+import CoachPage from "./pages/CoachPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 
 export default function App() {
@@ -49,6 +51,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <FeedbackPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/coach"
+            element={
+              <ProtectedRoute>
+                <CoachPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documents"
+            element={
+              <ProtectedRoute>
+                <DocumentsPage />
               </ProtectedRoute>
             }
           />

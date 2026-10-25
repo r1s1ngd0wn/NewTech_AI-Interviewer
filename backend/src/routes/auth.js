@@ -4,27 +4,31 @@ const requireAuth = require("../middleware/requireAuth");
 
 const router = express.Router();
 
-router.post("/register", (req, res, next) => {
+router.post("/register", async (req, res, next) => {
   try {
-    const result = authService.register(req.body || {});
+    const result = await authService.register(req.body || {});
     res.status(201).json(result);
   } catch (err) {
     next(err);
   }
 });
 
-router.post("/login", (req, res, next) => {
+router.post("/login", async (req, res, next) => {
   try {
-    const result = authService.login(req.body || {});
+    const result = await authService.login(req.body || {});
     res.json(result);
   } catch (err) {
     next(err);
   }
 });
 
-router.post("/logout", requireAuth, (req, res) => {
-  authService.revokeToken(req.token);
-  res.status(204).end();
+router.post("/logout", requireAuth, async (req, res, next) => {
+  try {
+    await authService.revokeToken(req.token);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get("/me", requireAuth, (req, res) => {
