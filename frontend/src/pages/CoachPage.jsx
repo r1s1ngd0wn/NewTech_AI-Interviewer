@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { AlertIcon, SendIcon, StopIcon } from "../components/icons.jsx";
+import { plainText } from "../lib/plainText.js";
 
 export default function CoachPage() {
   const [messages, setMessages] = useState([]);
@@ -65,7 +66,7 @@ export default function CoachPage() {
     <div className="coach-toolbar"><Link to="/documents">Your documents</Link></div>
     <div className="coach-log" ref={logRef} role="log" aria-live="polite" aria-label="Coach conversation">
       {messages.map((message, index) => <div key={index} className={`chat-msg chat-msg-${message.role}`}>
-        {message.text}
+        {plainText(message.text)}
         {message.incomplete && <span className="chat-msg-note">Incomplete reply</span>}
         {message.fallbackReason && <span className="chat-msg-note">Source excerpt shown because {message.fallbackReason}.</span>}
         {message.sources?.length > 0 && <details className="chat-msg-note"><summary>Sources ({message.sources.length})</summary>
@@ -73,7 +74,7 @@ export default function CoachPage() {
         </details>}
       </div>)}
       {busy && <div className="chat-msg chat-msg-assistant chat-msg-pending" role="status">
-        {pending || (stage === "searching" ? "Searching sources..." : "Writing answer...")}
+        {plainText(pending) || (stage === "searching" ? "Searching sources..." : "Writing answer...")}
         {sources.length > 0 && <span className="chat-msg-note">{sources.length} sources found</span>}
       </div>}
     </div>

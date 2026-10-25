@@ -87,7 +87,7 @@ test("Gemini can rescue a lower-similarity document only with concrete word over
   const content = "I added an idempotency key to prevent duplicate orders when a client retried a request.";
   try {
     const options = { embed: async () => Array(768).fill(0), query: async (sql, values) => ({ rows:
-      sql.includes("AND chunks.source_type = 'document'") && values[3] === 0.5
+      sql.includes("AND chunks.source_type = 'document'") && values[3] === rag.GEMINI_RESCUE_FLOOR
         ? [{ id: "cv-1", source_type: "document", source_label: "CV: sample-cv-long-test.txt",
           content, similarity: 0.524 }] : [] }) };
     const yes = await rag.retrieveKnowledge("long", "How did I prevent duplicate orders when clients retried?", 5, options);

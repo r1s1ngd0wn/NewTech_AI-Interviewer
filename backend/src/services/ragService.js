@@ -159,9 +159,15 @@ function hasLexicalEvidence(query, source) {
   return overlap >= 2 && overlap / queryWords.size >= 0.4;
 }
 
+// A Gemini match below the threshold is still kept when the question shares concrete words with the
+// passage (see hasLexicalEvidence). The floor is how low that rescue may look: measured on real
+// CV/JD fixtures the right passage for "How did I prevent duplicate orders?" scored 0.48, under the
+// old 0.50, while off-topic questions never reached 0.46 on documents.
+const GEMINI_RESCUE_FLOOR = 0.45;
+
 async function searchDocuments(userId, message, vector, threshold, limit, options = {}) {
   const model = embeddingService.config();
-  const floor = model?.provider === "gemini" ? Math.min(threshold, 0.50) : threshold;
+  const floor = model?.provider === "gemini" ? Math.min(threshold, GEMINI_RESCUE_FLOOR) : threshold;
   const matches = await searchKnowledge(userId, vector, floor, limit, options);
   return matches.filter((match) => match.similarity >= threshold ||
     (model?.provider === "gemini" && hasLexicalEvidence(message, match.text)));
@@ -218,12 +224,59 @@ function knowledgeIntent(message) {
   return "document";
 }
 
+const ORDINAL_NUMBERS = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7,
+  eighth: 8, ninth: 9, tenth: 10, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10 };
+
+// The interview chunks are labelled "Question 2 ..." so a message that says "the first question" or
+// "question two" is rewritten to "question 1" / "question 2" before it is embedded. "last"/"final"
+// needs the number of answered questions.
+const ORDINAL_ITEM = "(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|\\d{1,2}(?:st|nd|rd|th))";
+const ORDINAL_LIST = new RegExp(
+  `\\b(?:the\\s+)?(${ORDINAL_ITEM}(?:\\s*(?:,|and|&)\\s*(?:the\\s+)?${ORDINAL_ITEM})*)\\s+(?:questions?|answers?|q)\\b`, "gi");
+
+function ordinalToNumber(item) {
+  const word = item.toLowerCase();
+  return ORDINAL_NUMBERS[word] || Number.parseInt(word, 10);
+}
+
+function normalizeQuestionReferences(message, totalQuestions) {
+  return String(message)
+    // "the first question", "2nd answer", "the first and second answers", "first, third questions"
+    .replace(ORDINAL_LIST, (_, list) => list.split(/\s*(?:,|and|&)\s*(?:the\s+)?/i)
+      .map((item) => `question ${ordinalToNumber(item)}`).join(" and "))
+    .replace(/\b(?:question|answer|q)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\b/gi,
+      (_, word) => `question ${ORDINAL_NUMBERS[word.toLowerCase()]}`)
+    .replace(/\b(?:the\s+)?(?:last|final)\s+(?:question|answer)s?\b/gi,
+      (match) => (Number.isInteger(totalQuestions) && totalQuestions > 0 ? `question ${totalQuestions}` : match));
+}
+
+const MAX_PINNED_QUESTIONS = 2;
+
+function referencedQuestionNumbers(normalizedMessage) {
+  return [...new Set([...String(normalizedMessage).matchAll(/\bquestion (\d{1,2})\b/gi)].map((m) => Number(m[1])))]
+    .filter((n) => n >= 1).slice(0, MAX_PINNED_QUESTIONS);
+}
+
+async function pinnedQuestionChunks(query, userId, sessionId, modelKey, normalizedMessage) {
+  const numbers = referencedQuestionNumbers(normalizedMessage);
+  if (!numbers.length) return [];
+  // Chunk ids are `<session>-critique-<n>-<part>` (rubric bands + key points) and `<session>-turn-<n>-<part>`.
+  const ids = numbers.flatMap((n) => [1, 2].flatMap((part) =>
+    [`${sessionId}-critique-${n}-${part}`, `${sessionId}-turn-${n}-${part}`]));
+  const result = await query(`SELECT id, source_label, content FROM interviewai_rag_chunks
+    WHERE user_id = $1 AND session_id = $2 AND model_key = $3 AND id = ANY($4::text[])
+    ORDER BY id`, [userId, sessionId, modelKey, ids]);
+  return result.rows.map((row) => ({ id: row.id, label: row.source_label, text: row.content, similarity: 1 }));
+}
+
 async function retrieve(userId, context, message, options = {}) {
   await indexSession(userId, context, options);
   const model = embeddingService.config();
   const query = options.query || ((sql, values) => getPool().query(sql, values));
   const embed = options.embed || embeddingService.embed;
-  const vector = await embed(message, "RETRIEVAL_QUERY");
+  const searchText = normalizeQuestionReferences(message, context.session?.turns?.length);
+  const vector = await embed(searchText, "RETRIEVAL_QUERY");
   const threshold = matchThreshold(model);
   const result = await query(`SELECT id, source_label, content,
       1 - (embedding OPERATOR(extensions.<=>) $4::extensions.vector) AS similarity
@@ -235,8 +288,15 @@ async function retrieve(userId, context, message, options = {}) {
   const sessionMatches = result.rows.map((row) => ({ id: row.id, label: row.source_label,
     text: row.content, similarity: Number(row.similarity) }));
   const knowledgeMatches = process.env.STORE_BACKEND === "memory" && !options.query ? []
-    : await selectKnowledge(userId, message, vector, threshold, 5, options);
-  const selected = [...sessionMatches.slice(0, 3), ...knowledgeMatches.slice(0, 2)];
+    : await selectKnowledge(userId, searchText, vector, threshold, 5, options);
+  // Embeddings barely tell "question 1" from "question 2", so a message that names a question gets
+  // that question's own chunks looked up by id (still only this user's, this session's).
+  const pinned = await pinnedQuestionChunks(query, userId, context.session.id, embeddingService.modelKey(model), searchText);
+  const selected = [...pinned];
+  for (const match of [...sessionMatches.slice(0, 3), ...knowledgeMatches.slice(0, 2)]) {
+    if (selected.length >= 5) break;
+    if (!selected.some((item) => item.id === match.id)) selected.push(match);
+  }
   for (const match of [...sessionMatches, ...knowledgeMatches]) {
     if (selected.length >= 5) break;
     if (!selected.some((item) => item.id === match.id)) selected.push(match);
@@ -279,4 +339,5 @@ async function deleteInterviewIndex(sessionId, query = (sql, values) => getPool(
 
 module.exports = { chunkText, sessionSources, chunksFor, indexChunks, indexKnowledgeChunks,
   indexQuestionBank, indexSession, searchKnowledge, retrieveKnowledge, retrieve, retrieveDocumentContext,
-  deleteSessionIndex, deleteInterviewIndex, matchThreshold, knowledgeIntent, hasLexicalEvidence };
+  deleteSessionIndex, deleteInterviewIndex, matchThreshold, knowledgeIntent, hasLexicalEvidence,
+  normalizeQuestionReferences, referencedQuestionNumbers, GEMINI_RESCUE_FLOOR };

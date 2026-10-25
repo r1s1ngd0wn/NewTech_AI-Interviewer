@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.js";
 import { SendIcon, AlertIcon, TrashIcon, StopIcon } from "./icons.jsx";
+import { plainText } from "../lib/plainText.js";
 
 // Chat is scoped to one completed interview session. When RAG is enabled, the
 // backend also returns the source excerpts used for each answer.
@@ -164,7 +165,7 @@ export default function SessionChat({ sessionId }) {
         {messages &&
           messages.map((m, i) => (
             <div key={i} className={`chat-msg chat-msg-${m.role}`}>
-              {m.text}
+              {plainText(m.text)}
               {m.sources?.length > 0 && <details className="chat-msg-note"><summary>Sources ({m.sources.length})</summary>
                 <ul>{m.sources.map((item) => <li key={item.id}>{item.label}{item.excerpt && <>: {item.excerpt}</>}</li>)}</ul>
               </details>}
@@ -177,14 +178,14 @@ export default function SessionChat({ sessionId }) {
           ))}
         {sending && (
           <div className="chat-msg chat-msg-assistant chat-msg-pending" role="status">
-            {pendingText || (llm.enabled ? "Thinking..." : "...")}
+            {plainText(pendingText) || (llm.enabled ? "Thinking..." : "...")}
             {pendingSources.length > 0 && <details className="chat-msg-note"><summary>Sources ({pendingSources.length})</summary>
               <ul>{pendingSources.map((item) => <li key={item.id}>{item.label}{item.excerpt && <>: {item.excerpt}</>}</li>)}</ul>
             </details>}
           </div>
         )}
         {!sending && interruptedText && <div className="chat-msg chat-msg-assistant chat-msg-pending">
-          {interruptedText}<span className="chat-msg-note">Incomplete reply</span>
+          {plainText(interruptedText)}<span className="chat-msg-note">Incomplete reply</span>
         </div>}
       </div>
 
