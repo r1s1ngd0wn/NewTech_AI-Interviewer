@@ -1,5 +1,5 @@
-// AI Simulator (SRS 3.1.4): plays the interviewer role, but is strictly bounded to the
-// active scenario's fixed question set (FR-2.4) - it never invents new questions.
+// AI Simulator: plays the interviewer role using the session's question snapshot.
+// Retrieved document context is returned separately from the spoken scenario question.
 // This mock version reacts to the *shape* of the previous answer (length / filler ratio)
 // with a small set of scripted transition lines, keeping the persona/tone of the scenario.
 
@@ -36,6 +36,8 @@ function firstQuestion(scenario) {
   return {
     questionId: question.id,
     text: question.text,
+    contextSnippet: question.contextSnippet || null,
+    sourceLabel: question.sourceLabel || null,
     reaction: null,
     index: 0,
     total: scenario.questions.length,
@@ -57,6 +59,8 @@ function nextTurn(scenario, session) {
     reaction,
     questionId: question.id,
     text: question.text,
+    contextSnippet: question.contextSnippet || null,
+    sourceLabel: question.sourceLabel || null,
     index: answeredCount,
     total: scenario.questions.length,
   };
@@ -84,6 +88,7 @@ async function llmReaction(scenario, session) {
     temperature: 0.7,
     maxOutputTokens: 512,
     timeoutMs: llmService.reactionTimeoutMs(),
+    promptVersion: `reaction.v${prompt.version}`,
   });
 
   const cleaned = text.replace(/\s+/g, " ").trim();

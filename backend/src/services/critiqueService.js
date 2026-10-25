@@ -138,6 +138,7 @@ async function llmCritique(question, answerText, options = {}) {
         temperature: 0.2,
         maxOutputTokens: 1024,
         timeoutMs: CRITIQUE_TIMEOUT_MS,
+        promptVersion: `${prompt.name}.v${prompt.version}`,
       });
     } catch (err) {
       if (err.code !== "invalid_json" && err.code !== "empty") throw err;

@@ -8,7 +8,14 @@
 //   ---
 //   ...prompt text, with {{placeholders}}...
 //
-// Bump `version` whenever the wording changes in a way that could change results.
+// Bump `version` whenever the wording changes in a way that could change results, and copy the
+// previous text to archive/<name>.v<N>.md if it should stay runnable (the evaluation runner can
+// load it with renderFile()).
+//
+// Two ways to read a prompt:
+//   render(name, vars) -> { name, version, text }   fills {{placeholders}}, used for prompts with inputs
+//   prompt(name)       -> text                      for prompts without inputs (coach, debrief)
+// and `versions` maps each name to "v<version>" for the promptVersion that is logged per request.
 
 const fs = require("fs");
 const path = require("path");
@@ -65,8 +72,16 @@ function renderFile(file, vars = {}) {
   return fill(parse(fs.readFileSync(file, "utf8"), file), vars);
 }
 
+// Text of a prompt that takes no variables.
+function prompt(name) {
+  return render(name).text;
+}
+
 function list() {
   return [...load().values()].map(({ name, version }) => ({ name, version }));
 }
 
-module.exports = { render, renderFile, list };
+// { coach: "v1", debrief: "v1", ... } for the promptVersion recorded with each request.
+const versions = Object.freeze(Object.fromEntries([...load().values()].map((p) => [p.name, `v${p.version}`])));
+
+module.exports = { render, renderFile, prompt, list, versions };

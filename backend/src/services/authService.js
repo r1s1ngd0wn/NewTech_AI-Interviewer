@@ -32,7 +32,7 @@ function requireString(value, field, maxLength) {
   return value.trim();
 }
 
-function register({ email, password, name } = {}) {
+async function register({ email, password, name } = {}) {
   const normalizedEmail = requireString(email, "email", 254).toLowerCase();
   if (!EMAIL_PATTERN.test(normalizedEmail)) {
     throw httpError(400, "email is not a valid address");
@@ -41,10 +41,6 @@ function register({ email, password, name } = {}) {
   if (password.length < 6) throw httpError(400, "password must be at least 6 characters");
   if (password.length > 200) throw httpError(400, "password must be 200 characters or fewer");
   const cleanName = requireString(name, "name", MAX_NAME_LENGTH);
-
-  if (store.usersByEmail.has(normalizedEmail)) {
-    throw httpError(409, "an account with this email already exists");
-  }
 
   const salt = crypto.randomBytes(16).toString("hex");
   const user = {
@@ -62,53 +58,60 @@ function register({ email, password, name } = {}) {
     createdAt: new Date().toISOString(),
   };
 
-  store.users.set(user.id, user);
-  store.usersByEmail.set(normalizedEmail, user.id);
-
-  const token = issueToken(user.id);
-  return { user: toPublicUser(user), token };
+  if (!await store.usersByEmail.insertIfAbsent(normalizedEmail, user.id)) {
+    throw httpError(409, "an account with this email already exists");
+  }
+  try {
+    await store.users.set(user.id, user);
+    const token = await issueToken(user.id);
+    return { user: toPublicUser(user), token };
+  } catch (error) {
+    await store.users.delete(user.id);
+    await store.usersByEmail.delete(normalizedEmail);
+    throw error;
+  }
 }
 
-function login({ email, password } = {}) {
+async function login({ email, password } = {}) {
   if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
     throw httpError(400, "email and password are required");
   }
   const normalizedEmail = email.trim().toLowerCase();
-  const userId = store.usersByEmail.get(normalizedEmail);
-  const user = userId ? store.users.get(userId) : null;
+  const userId = await store.usersByEmail.get(normalizedEmail);
+  const user = userId ? await store.users.get(userId) : null;
 
   if (!user || !passwordMatches(password, user)) {
     throw httpError(401, "invalid email or password");
   }
 
-  const token = issueToken(user.id);
+  const token = await issueToken(user.id);
   return { user: toPublicUser(user), token };
 }
 
-function issueToken(userId) {
+async function issueToken(userId) {
   const token = crypto.randomBytes(24).toString("hex");
-  store.tokens.set(token, { userId, expiresAt: Date.now() + TOKEN_TTL_MS });
+  await store.tokens.set(token, { userId, expiresAt: Date.now() + TOKEN_TTL_MS });
   return token;
 }
 
-function revokeToken(token) {
-  if (token) store.tokens.delete(token);
+async function revokeToken(token) {
+  if (token) await store.tokens.delete(token);
 }
 
-function getUserFromToken(token) {
-  const record = store.tokens.get(token);
+async function getUserFromToken(token) {
+  const record = await store.tokens.get(token);
   if (!record) return null;
   // Tokens issued before expiry existed were stored as a bare userId string.
   const userId = typeof record === "string" ? record : record.userId;
   if (typeof record === "object" && record.expiresAt < Date.now()) {
-    store.tokens.delete(token);
+    await store.tokens.delete(token);
     return null;
   }
-  return store.users.get(userId) || null;
+  return (await store.users.get(userId)) || null;
 }
 
-function updateProfile(userId, patch = {}) {
-  const user = store.users.get(userId);
+async function updateProfile(userId, patch = {}) {
+  const user = await store.users.get(userId);
   if (!user) throw httpError(404, "user not found");
 
   if (patch.name !== undefined) {
@@ -125,7 +128,7 @@ function updateProfile(userId, patch = {}) {
   user.profile.onboardingComplete = Boolean(
     user.profile.targetIndustry && user.profile.targetRole && user.profile.experienceLevel
   );
-  store.users.set(userId, user);
+  await store.users.set(userId, user);
   return toPublicUser(user);
 }
 

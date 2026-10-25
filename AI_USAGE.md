@@ -80,11 +80,52 @@ prompt files, history, admin usage dashboard.
 - **Fix:** word-boundary regexes in `backend/src/utils/text.js` and a regression test in
   `backend/test/scoring.test.js`.
 
+### 4. Review of Long's RAG branch and the fixes (`khoa/rag-fixes`)
+
+- **Key prompt (paraphrased):** "check Long's branch and test run it", then "fix it directly" after
+  the group agreed in chat.
+- **Generated:** trial-merge and live test scripts (Supabase, local Gemma and Gemini), and the fixes:
+  narrower input-guard patterns, a lower Gemini rescue floor, question-number lookup for the debrief
+  chat, and a `plainText` helper for chat replies.
+- **Checked / changed by me:** every claim was measured, not assumed. The guard was tried on 14
+  phrasings Long had not seen (it caught none), the false positives on real questions ("I built a
+  weather app...") were reproduced, and each fix was re-tested live against the shared Supabase
+  project with temporary accounts that were deleted afterwards.
+- **AI got it wrong, case 4:** my first guard rewrite used one pattern list for both chat messages
+  and uploaded CVs. Reading it back, `Override system defaults...` and a CV line `Developer: Java`
+  would have been deleted from users' CVs by `sanitizeSourceText`. Split into a document list and a
+  chat list, with tests for both.
+- **AI got it wrong, case 5:** rewriting "the first question" to "question 1" before the embedding
+  search did not help, because embeddings barely tell "question 1" from "question 2" (the chunk for
+  question 2 ranked above question 1's own). Found by printing the similarity scores; fixed by
+  looking the numbered chunks up by id, scoped to the user and session.
+
+### 5. Merging the critique onto Long's async Postgres store (`khoa/critique-on-main`)
+
+- **Generated:** the merge of 8 conflicting files (`sessionService`, `llmService`, prompt registry,
+  routes, package files, this file) and a new `setTurnCritique` store method.
+- **Checked / changed:** 194 backend tests, plus a real run on Supabase (reviews written while later
+  answers are submitted, request log rows, debrief chat). Finish went from 16 s to about 10 s once the
+  wait for reviews ran alongside scoring.
+- **AI got it wrong, case 6:** converting Long's prompt files to the new header format, my script read
+  them from the wrong merge stage and wrote three prompts with empty bodies, then deleted the
+  originals. I noticed the empty `prompt("coach")` in the check output, restored them from `main`,
+  and added a test that the three prompts are identical to Long's originals.
+- **AI got it wrong, case 7:** the first version of the merged critique code wrote each review by
+  reading the whole session and saving it back. With Long's async database that can overwrite an
+  answer submitted a moment earlier. Caught while designing the merge; replaced with a single-field
+  `jsonb_set` update, with a test that two answers survive a review landing between them.
+
 ---
 
 ## Long
 
-_(to be filled in by Long: RAG, upload, streaming, input guard)_
+Written by Long (copied unchanged from his branch):
+
+- AI assistance: implemented and reviewed reusable document upload/list/preview/delete, pgvector retrieval, source handling, basic input guardrails, streaming stop control, automated tests and documentation.
+- Human decisions required: verify the CV/JD experience in a live browser after merging with teammates' work, and review retrieval quality, latency and provider quota on a larger evaluation set. Migrations 004/005 and the 76 question-bank entries were applied to the currently configured Supabase project on 2026-10-24.
+- Verification recorded in this repository: `backend/test/long.test.js` and the full backend test suite. On 2026-10-24, `npm run eval:long:live` with Gemini embeddings and the two synthetic fixtures passed 23/23 source-selection cases and 11/11 guard cases at the local `RAG_MATCH_THRESHOLD=0.55`. This does not measure factual correctness of generated answers or performance on a larger real-world set.
+- Review follow-up: added per-file and per-user upload limits, bounded DOCX expansion, source-balanced retrieval, provider-specific threshold defaults, Nomic query/document prefixes, selective chat deletion, versioned Coach/debrief prompts, and metadata-only AI request logging. The `backend/eval/long-cases.json` cases can now be run with `npm run eval:long`; live retrieval requires sample documents in a dedicated test account.
 
 ---
 

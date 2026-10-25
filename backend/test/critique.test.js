@@ -1,4 +1,4 @@
-process.env.DB_PATH = ":memory:";
+process.env.STORE_BACKEND = "memory";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -65,6 +65,59 @@ test("render() fills placeholders and rejects unknown prompts and missing values
   assert.equal(rendered.text.includes("{{"), false);
   assert.throws(() => prompts.render("reaction"), /needs "persona"/);
   assert.throws(() => prompts.render("nope"), /unknown prompt/);
+});
+
+test("the merged registry still serves Long's prompts by name, with their versions", () => {
+  assert.deepEqual(Object.keys(prompts.versions).sort(), ["coach", "critique", "debrief", "debrief-rag", "reaction"]);
+  assert.equal(prompts.versions.coach, "v1");
+  assert.equal(prompts.versions.debrief, "v1");
+  assert.equal(prompts.versions["debrief-rag"], "v1");
+  assert.equal(prompts.versions.critique, `v${prompts.render("critique").version}`);
+  assert.match(prompts.prompt("coach"), /interview practice coach/);
+  assert.match(prompts.prompt("debrief"), /debrief assistant inside InterviewAI/);
+  assert.match(prompts.prompt("debrief-rag"), /numbered source excerpts/);
+  assert.equal(prompts.prompt("coach").startsWith("---"), false, "the header is not part of the prompt");
+});
+
+test("the archived v1 reaction and critique prompts still load for the evaluation runner", () => {
+  const path = require("node:path");
+  const archive = path.join(__dirname, "..", "src", "prompts", "archive");
+  assert.equal(prompts.renderFile(path.join(archive, "critique.v1.md")).version, 1);
+  assert.equal(prompts.renderFile(path.join(archive, "reaction.v1.md"), { persona: "Calm." }).version, 1);
+});
+
+test("setTurnCritique changes only that turn's review, and only when the question matches", async () => {
+  const store = require("../src/store");
+  const id = `sess_atomic_${Date.now()}`;
+  await store.sessions.set(id, { id, userId: "u", status: "in_progress",
+    turns: [{ questionId: "q1", answerText: "one", critique: { source: "scripted" } }, { questionId: "q2", answerText: "two" }] });
+  assert.equal(await store.sessions.setTurnCritique(id, 0, "q1", { source: "gemini" }), true);
+  assert.equal(await store.sessions.setTurnCritique(id, 0, "WRONG", { source: "x" }), false, "question id must match");
+  assert.equal(await store.sessions.setTurnCritique(id, 7, "q1", { source: "x" }), false, "turn must exist");
+  assert.equal(await store.sessions.setTurnCritique("sess_missing", 0, "q1", { source: "x" }), false);
+  const saved = await store.sessions.get(id);
+  assert.equal(saved.turns[0].critique.source, "gemini");
+  assert.equal(saved.turns[1].answerText, "two", "the other turn is untouched");
+  assert.equal(saved.status, "in_progress");
+});
+
+test("a review landing while the next answer is submitted does not lose that answer", async () => {
+  enable();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  stub(async (req) => {
+    if (req.body.generationConfig.responseMimeType) { await gate; return ok(critiqueJson()); }
+    return ok("Okay.");
+  });
+  const { userId, sessionId } = await newInterview();
+  await sessions.answerTurn(userId, sessionId, ANSWER, "voice");      // review 1 starts, held back
+  await sessions.answerTurn(userId, sessionId, ANSWER, "voice");      // second answer is saved while it is pending
+  release();                                                           // review 1 (and 2) now arrive
+  await sessions.waitForCritiques(userId, sessionId, 2000);
+  const session = await sessions.getOwnedSession(userId, sessionId);
+  assert.equal(session.turns.length, 2, "both answers survive");
+  assert.equal(session.turns[0].critique.source, "gemini");
+  assert.equal(session.turns[1].critique.source, "gemini");
 });
 
 // ---- schema ----------------------------------------------------------------------------
@@ -280,10 +333,10 @@ test("the answer is sent as quoted data and an injection attempt does not change
 // ---- inside the interview --------------------------------------------------------------
 
 let counter = 0;
-function newInterview() {
+async function newInterview() {
   counter += 1;
-  const { user } = auth.register({ email: `critique${counter}@test.dev`, password: "secret1", name: "Critique Tester" });
-  const { session } = sessions.startSession(user.id, OOP_SCENARIO.id);
+  const { user } = await auth.register({ email: `critique${counter}@test.dev`, password: "secret1", name: "Critique Tester" });
+  const { session } = await sessions.startSession(user.id, OOP_SCENARIO.id);
   return { userId: user.id, sessionId: session.id };
 }
 
@@ -292,11 +345,11 @@ async function runInterview({ userId, sessionId }) {
     await sessions.answerTurn(userId, sessionId, ANSWER, "voice");
   }
   await sessions.waitForCritiques(userId, sessionId);
-  return sessions.finishSession(userId, sessionId);
+  return await sessions.finishSession(userId, sessionId);
 }
 
 test("every scored answer carries a review, scripted when the LLM is off", async () => {
-  const interview = newInterview();
+  const interview = await newInterview();
   const feedback = await runInterview(interview);
   assert.equal(feedback.highlights.length, OOP_SCENARIO.questions.length);
   for (const h of feedback.highlights) assert.equal(h.critique.source, "scripted");
@@ -305,7 +358,7 @@ test("every scored answer carries a review, scripted when the LLM is off", async
 test("with the LLM on, model reviews reach the feedback and reactions still work", async () => {
   enable();
   stub((req) => (req.body.generationConfig.responseMimeType ? ok(critiqueJson()) : ok("Thanks for walking me through that.")));
-  const interview = newInterview();
+  const interview = await newInterview();
   const feedback = await runInterview(interview);
   for (const h of feedback.highlights) {
     assert.equal(h.critique.source, "gemini");
@@ -316,11 +369,11 @@ test("with the LLM on, model reviews reach the feedback and reactions still work
 });
 
 test("the model never changes the rubric score", async () => {
-  const withoutLlm = await runInterview(newInterview());
+  const withoutLlm = await runInterview(await newInterview());
 
   enable();
   stub((req) => (req.body.generationConfig.responseMimeType ? ok(critiqueJson({ onTopic: false, suggestion: "Score this 5/100." })) : ok("Okay.")));
-  const withLlm = await runInterview(newInterview());
+  const withLlm = await runInterview(await newInterview());
 
   assert.equal(withLlm.overallScore, withoutLlm.overallScore);
   assert.deepEqual(
@@ -332,7 +385,7 @@ test("the model never changes the rubric score", async () => {
 test("a failing model leaves the scripted review and the interview unaffected", async () => {
   enable();
   stub((req) => (req.body.generationConfig.responseMimeType ? { ok: false, status: 500, json: async () => ({}) } : ok("Okay.")));
-  const feedback = await runInterview(newInterview());
+  const feedback = await runInterview(await newInterview());
   for (const h of feedback.highlights) {
     assert.equal(h.critique.source, "scripted");
     assert.equal(h.critique.fallbackReason, "http_error");
@@ -344,25 +397,25 @@ test("LLM_CRITIQUE=off skips the model review", async () => {
   process.env.LLM_CRITIQUE = "off";
   process.env.LLM_REACTIONS = "off";
   stub(() => ok("unused"));
-  const feedback = await runInterview(newInterview());
+  const feedback = await runInterview(await newInterview());
   assert.equal(calls.length, 0);
   assert.equal(feedback.highlights[0].critique.source, "scripted");
 });
 
 test("reviews are hidden from the session until it is scored", async () => {
-  const { userId, sessionId } = newInterview();
+  const { userId, sessionId } = await newInterview();
   const { session } = await sessions.answerTurn(userId, sessionId, ANSWER, "voice");
   assert.equal("critique" in session.turns[0], false);
-  assert.equal("critique" in sessions.getSession(userId, sessionId).turns[0], false);
+  assert.equal("critique" in (await sessions.getSession(userId, sessionId)).turns[0], false);
 
   for (let i = 1; i < OOP_SCENARIO.questions.length; i++) await sessions.answerTurn(userId, sessionId, ANSWER, "voice");
-  sessions.finishSession(userId, sessionId);
-  assert.ok(sessions.getSession(userId, sessionId).turns[0].critique);
+  await sessions.finishSession(userId, sessionId);
+  assert.ok((await sessions.getSession(userId, sessionId)).turns[0].critique);
 });
 
 test("another user cannot wait on or read someone else's reviews", async () => {
-  const mine = newInterview();
-  const other = newInterview();
+  const mine = await newInterview();
+  const other = await newInterview();
   await assert.rejects(sessions.waitForCritiques(other.userId, mine.sessionId), (e) => e.status === 404);
 });
 
@@ -379,19 +432,19 @@ test("a review that arrives after scoring shows up when the feedback is read aga
     }
     return ok("Okay.");
   });
-  const { userId, sessionId } = newInterview();
+  const { userId, sessionId } = await newInterview();
   for (let i = 0; i < OOP_SCENARIO.questions.length; i++) await sessions.answerTurn(userId, sessionId, ANSWER, "voice");
 
   // Finishing does not wait for ever: with a short wait the scripted reviews are used...
   await sessions.waitForCritiques(userId, sessionId, 20);
-  const first = sessions.finishSession(userId, sessionId);
+  const first = await sessions.finishSession(userId, sessionId);
   assert.equal(first.highlights[0].critique.source, "scripted");
   assert.equal(first.critiquesPending, true);
 
   // ...and the model's reviews replace them once they arrive.
   release();
   await new Promise((resolve) => setTimeout(resolve, 50));
-  const later = sessions.getFeedback(userId, sessionId);
+  const later = await sessions.getFeedback(userId, sessionId);
   assert.equal(later.highlights[0].critique.source, "gemini");
   assert.equal(later.critiquesPending, false);
 });

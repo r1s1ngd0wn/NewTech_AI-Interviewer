@@ -1,20 +1,15 @@
 # InterviewAI
 
-A simple, working slice of the system described in `InterviewAI_SRS.docx`: account/profile,
-scenario selection, a live spoken interview session, rubric-based scoring, feedback report,
+An interview practice app with account/profile, scenario selection, optional CV/job-description
+upload before the interview, a live spoken session, rubric-based scoring, feedback report,
 a post-interview chat, and progress tracking.
 
 ## Stack
 
-- **Backend** - Node.js + Express, persisted with SQLite via Node's built-in `node:sqlite`
-  module (`backend/src/db/connection.js`), no native compilation, no separate DB server to
-  install. The data file lives at `backend/data/interviewai.sqlite` and survives restarts;
-  delete it to reset all data. `backend/src/store/index.js` exposes a Map-like
-  get/set/delete/values interface the services use, so swapping the database later means
-  changing that one file, not the route/service layer. Scoring is deterministic and
-  rubric-based. The AI Simulator (`backend/src/services/aiSimulator.js`) and the interview
-  chat (`backend/src/services/chatService.js`) are scripted, grounded stand-ins for a local
-  LLM (see "Planned: local models" below).
+- **Backend** - Node.js + Express with Supabase Postgres for application data, pgvector
+  for interview/document retrieval, and private Supabase Storage for uploaded files.
+  Scoring remains deterministic and rubric-based. The interview chat can use Gemini or
+  a local OpenAI-compatible model, with scripted answers when no model is configured.
 - **Frontend** - React + Vite, React Router, plain CSS (no build-time CSS framework). Uses the
   browser's Web Speech API (`SpeechRecognition` / `speechSynthesis`) for STT/TTS, with a text
   fallback if the browser doesn't support it (e.g. Firefox). The transcript is editable, so a
@@ -33,7 +28,19 @@ It is **not** created when `NODE_ENV=production` unless `SEED_TEST_ACCOUNT=true`
 
 ## Running locally
 
-Requires Node.js 22.5+ (for the built-in `node:sqlite` module).
+Requires Node.js 22.5+ and a Supabase project. Before starting the backend:
+
+1. Create a Supabase project. In its SQL Editor, run `backend/sql/001_app_store.sql`,
+   then `backend/sql/002_rag.sql` (creates the private Storage bucket too), then
+   `backend/sql/003_document_library.sql` (reusable CV/JD library and shared question index),
+   then run `npm run migrate:followup` in `backend` for the session-owner index and AI request log table.
+2. Copy `backend/.env.example` to `backend/.env`. From Supabase **Connect**, copy the
+   Direct connection string (IPv6) or Session pooler string (IPv4) into `DATABASE_URL`.
+   Replace its password placeholder locally; percent-encode reserved characters.
+3. From Project Settings > API Keys, set `SUPABASE_URL` and the **Secret key**
+   as `SUPABASE_SECRET_KEY` in `backend/.env` for file upload. Never put the secret key
+   or database URL in frontend code or Git. Set `GEMINI_API_KEY` plus `EMBEDDING_PROVIDER=gemini`, or use
+   local chat/embedding models as configured below.
 
 ```bash
 cd backend
@@ -50,6 +57,29 @@ npm run dev
 Open http://localhost:5173. The Vite dev server proxies `/api/*` to the backend on port 4000
 (see `frontend/vite.config.js`), so no CORS setup is needed in development.
 
+The **Coach** page works before an interview. It retrieves your CV/JD library and indexed
+question-bank entries, streams answers with citations, and refuses off-topic requests.
+The chat on a completed feedback page still answers about that particular interview.
+To refresh question-bank embeddings after editing scenarios, run `npm run index:questions`
+from `backend` (one embedding request per question; check your provider quota first).
+After changing embedding model or enabling a Nomic local model, run `npm run index:questions`
+and `npm run reindex:documents`. Nomic queries and documents use different prefixes; existing
+vectors are re-embedded under a new model key.
+
+To try document-grounded questions, open **Documents** and upload a CV or job
+description (PDF, DOCX, TXT or Markdown, up to 5 MB, 100,000 extracted characters and
+40 searchable chunks). Each account can keep 10 library documents and each interview
+can hold 3 session documents. Documents in the library are
+available to your future interviews. You can also upload a document only for one
+interview on its preparation screen. Then select **Start interview**. A matching excerpt
+is available under **Context from...** while the interviewer speaks only the scenario question;
+the original question and its scoring keywords remain intact. Without a matching document,
+the scenario question is shown as written. After scoring,
+the same documents are available to the interview chat. Delete session files from that
+chat or library files from **Documents**. Deletion removes their search chunks and any
+saved question excerpts derived from the file. Chat history is cleared only for sessions
+that included the deleted file as question context or cited it in a reply.
+
 ## Tests
 
 ```bash
@@ -57,10 +87,26 @@ cd backend
 npm test
 ```
 
-Uses Node's built-in test runner against an in-memory SQLite database (`DB_PATH=:memory:`),
-so it never touches `backend/data/`. Covers the scoring rules (including filler-word
+Uses Node's built-in test runner against isolated in-memory tables, so it never touches
+Supabase. Covers the scoring rules (including filler-word
 matching), auth validation and token expiry, session lifecycle, chat, stale-session cleanup,
-and account deletion/export.
+  account deletion/export, RAG source isolation, document limits, selective chat deletion,
+  no-match replies, input guardrails and SSE framing.
+
+`npm run eval:long` runs guardrail cases without a database. To evaluate retrieval, upload
+`test-fixtures/sample-cv-long-test.txt` and `test-fixtures/sample-jd-long-test.txt` to a
+dedicated test account, index the question bank, then run `npm run eval:long:live` when
+only one account has both fixtures. With several accounts, set
+`$env:EVAL_EMAIL="your-test-email@example.com"` and run `npm run eval:long` in PowerShell. The runner
+checks 23 retrieval questions and reports source selection, not factual correctness of
+generated prose. Review failed cases before changing the similarity threshold.
+On 2026-10-24 the supplied synthetic fixtures passed 23/23 source-selection cases and
+11/11 guard cases with Gemini embeddings at local threshold 0.55. This is a small
+fixture result, not a general answer-accuracy claim.
+
+For a temporary UI preview before creating a Supabase project, start the backend with
+`STORE_BACKEND=memory`. This mode is disabled in production, never uses SQLite, does not
+persist data and cannot upload files. Normal development uses Supabase.
 
 ### AI evaluation
 
@@ -80,7 +126,15 @@ src/prompts/archive/critique.v1.md --no-grounding` (reproduce the behaviour befo
 | `NODE_ENV` | `production` disables the demo login and the open CORS default |
 | `SEED_TEST_ACCOUNT` | `true` to force the demo login in production (demos only) |
 | `TRUST_PROXY` | Number of reverse proxies in front (1 with the bundled nginx) so rate limiting sees real client IPs |
-| `DB_PATH` | Alternative SQLite path, or `:memory:` |
+| `DATABASE_URL` | Supabase Postgres connection string; required to start the backend |
+| `SUPABASE_URL` / `SUPABASE_SECRET_KEY` | Server-only access to the private upload bucket; legacy service-role key is also accepted |
+| `STORE_BACKEND` | `memory` for a temporary local preview without Supabase; never for production |
+| `EMBEDDING_PROVIDER` | `gemini` or `local` to enable pgvector RAG |
+| `GEMINI_EMBEDDING_MODEL` | Gemini embedding model (default `gemini-embedding-001`) |
+| `LOCAL_EMBEDDING_MODEL` | Local embedding model ID; must return 768 dimensions |
+| `RAG_MATCH_THRESHOLD` | Optional global cosine-similarity override; unset uses provider defaults |
+| `RAG_MATCH_THRESHOLD_GEMINI` / `RAG_MATCH_THRESHOLD_LOCAL` | Optional provider overrides (defaults 0.60 / 0.65); validate with `eval:long` |
+| `RAG_PREP_THRESHOLD` | Minimum document similarity for interview question context (default 0.5) |
 | `GEMINI_API_KEY` | Optional. Enables Gemini for chat replies and interviewer reactions |
 | `GEMINI_MODEL` | Gemini model name (default `gemini-flash-latest`) |
 | `LLM_TIMEOUT_MS` | Per-call timeout for the model (default 15000; interviewer reactions use 8000) |
@@ -90,6 +144,13 @@ src/prompts/archive/critique.v1.md --no-grounding` (reproduce the behaviour befo
 | `LLM_PROVIDER` | `local` uses a local server, `none` forces scripted replies; unset means Gemini if a key exists |
 | `LOCAL_LLM_URL` / `LOCAL_LLM_MODEL` / `LOCAL_LLM_API_KEY` | Local server base URL (default LM Studio `http://localhost:1234/v1`), model id, optional key |
 | `LLM_REACTION_TIMEOUT_MS` | How long an interview waits for a model-written reaction (8000 Gemini, 20000 local) |
+
+AI request metadata (user ID, provider, model, operation, prompt version, duration, status)
+is saved in `interviewai_ai_request_logs` after migration 005. Prompts, document text,
+model responses and keys are not saved in this log. The Coach and completed-interview
+chat use versioned prompts in `backend/src/prompts/`. Account export includes these
+metadata rows, and account deletion removes them. Migration 006 makes late-arriving logs
+subject to the same deletion rule; it does not alter existing orphan rows.
 
 ## Optional: Gemini API for the LLM parts
 
@@ -104,21 +165,27 @@ GEMINI_MODEL=gemini-flash-latest
 
 Without a key everything keeps using the scripted replies. With one:
 
-- **Chat** (`chatService.js`): the model gets that session's transcript, the question bank's key
-  points (`referenceAnswer`) for each question, and the final rubric result. It is told to use
-  only those sources, to say when something is outside them, and that the scores are fixed.
-  Anything it puts in quotation marks is checked against the transcript and key points; a reply
-  with an invented quote is retried once, then replaced by the data-only scripted answer.
-  Replies are labelled with the model name in the UI.
-- **Reactions** (`aiSimulator.llmReaction`): one short acknowledgement per answer. The next
-  question is always taken from the scenario list, and a generated line that asks a question or
-  runs long is discarded, so the interviewer still cannot invent questions.
-- **Scoring is never sent to the model**: it stays deterministic, and the per-question `keywords`
-  never leave the backend.
+- **Chat without embeddings**: the model gets that session's transcript, question-bank key
+  points and final rubric result. Invented quotes are retried, then replaced by a scripted answer.
+- **Chat with embeddings**: questions/answers, feedback, shared question-bank entries and
+  uploaded documents are searched in pgvector. Private matches are filtered by user; interview
+  matches are filtered by user and session. Cited source excerpts are shown in chat. If nothing
+  clears the threshold, chat says it could not find an
+  answer. The stream endpoint displays model output incrementally via SSE.
+- **Preparation**: document embeddings select relevant excerpts before the interview. Each
+  excerpt is shown separately from the spoken scenario question. The fixed question and its
+  rubric keywords are saved with the session.
+- **Reactions** (`aiSimulator.llmReaction`): one short acknowledgement per answer. A generated
+  line that asks a question or runs long is discarded.
+- **Scoring stays deterministic**: the model may read final scores to explain them, but cannot
+  recalculate them. Per-question scoring `keywords` are not sent to the model.
 - **Fallback**: on any error (bad key, quota, timeout) the scripted answer is used and the chat
   shows why, e.g. "Gemini returned 429: quota exceeded".
-- **Privacy**: transcripts are sent to Google for each request. Check Google's terms for data use
-  on your key's tier, and use practice data only.
+- **Privacy**: with Gemini chat/embeddings, relevant transcript and uploaded text is sent to
+  Google; with local models inference stays on your computer, while application data and files
+  remain in Supabase. Uploaded
+  originals are kept in a private bucket and deleted with their session/library entry/account. Use practice
+  data only and do not upload sensitive real CVs without consent.
 - **Free-tier limits**: Google's free tier can be as low as 20 requests per day per model
   (`gemini-3.5-flash` was), and one interview uses up to 5 reaction calls plus every chat message.
   A model that answers in 1 to 3 seconds without hitting the limit (`gemini-3.1-flash-lite` did) is
@@ -158,8 +225,10 @@ with Gemini. If the server is stopped, the app shows why and uses the scripted r
 docker compose up --build
 ```
 
-Frontend at http://localhost:5173 (nginx, proxies `/api` to the backend container), backend
-at http://localhost:4000. The backend has a health check and its data lives in a named volume.
+Set `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and optional model variables in
+the environment or a repo-root `.env` before `docker compose up --build`. Keep that file out of
+Git. Frontend is at http://localhost:5173; backend at http://localhost:4000. Data is in Supabase,
+not a Docker volume. For local LLMs in Docker, use a host address reachable from the container.
 
 ## What's implemented vs. mocked
 
@@ -168,14 +237,17 @@ at http://localhost:4000. The backend has a health check and its data lives in a
 | Onboarding / profile (FR-1.x) | Implemented (industry, job title, level) |
 | Scenario library + filtering (FR-2.x) | Implemented, 16 scenarios in `backend/src/data/scenarios.json` (see "Question data" below) |
 | Speech pipeline (FR-3.x) | Browser Web Speech API (STT/TTS), not a self-hosted engine |
-| AI Simulator (FR-4.x) | Questions come only from the scenario's fixed list. Reactions are scripted, or written by Gemini when `GEMINI_API_KEY` is set. Local models are still planned |
+| AI Simulator (FR-4.x) | Questions come only from the scenario's fixed list. Reactions are scripted or written by Gemini/local LLM when configured |
 | Rubric-based scoring (FR-5.x) | Deterministic text-metric rules in `backend/src/services/scoringService.js`, mapped through `backend/src/data/rubric.json`. Vocabulary is scored for range only; grammar is not checked automatically |
 | Feedback report (FR-6.x) | Implemented, including partial sessions ended early |
 | Progress tracking (FR-7.x) | Implemented (trend chart, per-criterion table, weakest criterion) |
-| Interview chat | Answers grounded in one session's transcript and scores: written by Gemini when a key is set, scripted otherwise |
-| Auth | Email/password + bearer token stored in SQLite; tokens expire after 7 days and are revoked on log out; login/register are rate limited |
-| Data rights | Per-session delete, full data export, and account deletion from the Profile page |
-| Persistence | SQLite file (`backend/data/interviewai.sqlite`), survives restarts |
+| Interview chat | Optional pgvector RAG with sources/no-match and SSE; non-RAG/model-free fallback remains |
+| Auth | Email/password + bearer token stored in Supabase Postgres; OAuth2/roles belong to Person 3 |
+| Data rights | Per-file/session delete, full data export, and account deletion; associated vectors and Storage objects are removed |
+| Persistence | Supabase Postgres + private Supabase Storage; no SQLite runtime |
+
+The old local `backend/data/interviewai.sqlite` file is not read by this version and is **not
+automatically imported**. Keep a backup if that demo data matters.
 
 Abandoned interviews (started but never finished) are deleted after 2 hours.
 
@@ -204,11 +276,10 @@ How the dataset was used:
   are one-line outlines ("key points"), not full answers. The chat uses them as its source for what
   a strong answer should cover; they are never sent to the browser through the scenario API.
 
-## Planned: local models
+## Planned: local speech models
 
 The approved stack is ASR `qwen3-1.7b-asr`, LLM `gemma3n-e4b`, TTS `vibevoice-1.5b`, served
-locally. Swap-out points: replace `aiSimulator.js` and `chatService.js`'s `generateReply` with
-calls to the local inference server, keeping the same grounding data (scenario question list,
-session transcript, deterministic feedback) as the prompt context so the model cannot
-contradict or replace the rubric scores. The relevance criterion scores against each
-question's `keywords`, so any questions imported from an external dataset need keywords too.
+locally. The chat/reaction LLM already supports an OpenAI-compatible local server. ASR and TTS
+still use the browser Web Speech API; the approved self-hosted ASR/TTS models are not integrated.
+The relevance criterion scores against each question's `keywords`, so any questions imported
+from an external dataset need keywords too.

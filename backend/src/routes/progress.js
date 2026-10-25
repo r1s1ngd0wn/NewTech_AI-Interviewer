@@ -4,8 +4,12 @@ const requireAuth = require("../middleware/requireAuth");
 
 const router = express.Router();
 
-router.get("/", requireAuth, (req, res) => {
-  res.json(progressService.getProgress(req.user.id));
+router.get("/", requireAuth, async (req, res, next) => {
+  try {
+    res.json(await progressService.getProgress(req.user.id));
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

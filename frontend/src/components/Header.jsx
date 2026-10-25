@@ -25,6 +25,12 @@ export default function Header() {
             <NavLink to="/dashboard" className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`}>
               Progress
             </NavLink>
+            <NavLink to="/documents" className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`}>
+              Documents
+            </NavLink>
+            <NavLink to="/coach" className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`}>
+              Coach
+            </NavLink>
             <NavLink to="/onboarding" className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`}>
               Profile
             </NavLink>

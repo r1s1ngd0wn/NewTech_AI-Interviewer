@@ -8,15 +8,33 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test \"test/*.test.js\"",
+    "index:questions": "node scripts/indexQuestions.js",
+    "check:schema": "node scripts/checkSchema.js",
+    "migrate:documents": "node scripts/migrateDocuments.js",
+    "smoke:documents": "node scripts/smokeDocuments.js",
+    "eval:long": "node eval/runLong.js",
+    "eval:long:live": "node eval/runLong.js --live",
+    "migrate:followup": "node scripts/applyFollowupMigrations.js",
+    "reindex:documents": "node scripts/reindexDocuments.js",
+    "check:model-stream": "node scripts/checkModelStream.js",
     "eval": "node eval/run.js"
   },
   "engines": {
     "node": ">=22.5.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "jszip": "^3.10.2",
+    "mammoth": "^1.13.0",
+    "multer": "^2.5.0",
+    "pdfjs-dist": "^6.4.299",
+    "pg": "^8.23.1",
     "zod": "^4.6.7"
+  },
+  "overrides": {
+    "body-parser": "1.20.9"
   }
 }

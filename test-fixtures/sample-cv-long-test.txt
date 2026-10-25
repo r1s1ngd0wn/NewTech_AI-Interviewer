@@ -1,0 +1,11 @@
+TEST CV - fictional candidate
+
+Name: Nguyen Van An
+Target role: Junior Backend Developer
+
+Project: Orion Inventory API
+I built the Orion Inventory API for a university capstone project. I implemented REST endpoints in Java and Spring Boot, stored product and order data in PostgreSQL, and added an idempotency key to prevent duplicate orders when a client retried a request.
+
+Teamwork: I worked in a three-person team. I reviewed pull requests from teammates and wrote unit tests for the order endpoint.
+
+This is synthetic test data, not a real CV.

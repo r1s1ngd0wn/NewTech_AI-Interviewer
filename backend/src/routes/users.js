@@ -6,26 +6,26 @@ const requireAuth = require("../middleware/requireAuth");
 const router = express.Router();
 router.use(requireAuth);
 
-router.put("/me", (req, res, next) => {
+router.put("/me", async (req, res, next) => {
   try {
-    const user = authService.updateProfile(req.user.id, req.body || {});
+    const user = await authService.updateProfile(req.user.id, req.body || {});
     res.json({ user });
   } catch (err) {
     next(err);
   }
 });
 
-router.get("/me/export", (req, res, next) => {
+router.get("/me/export", async (req, res, next) => {
   try {
-    res.json(accountService.exportData(req.user.id));
+    res.json(await accountService.exportData(req.user.id));
   } catch (err) {
     next(err);
   }
 });
 
-router.delete("/me", (req, res, next) => {
+router.delete("/me", async (req, res, next) => {
   try {
-    accountService.deleteAccount(req.user.id);
+    await accountService.deleteAccount(req.user.id);
     res.status(204).end();
   } catch (err) {
     next(err);

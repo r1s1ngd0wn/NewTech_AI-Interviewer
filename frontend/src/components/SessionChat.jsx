@@ -1,18 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.js";
-import { SendIcon, AlertIcon } from "./icons.jsx";
+import { SendIcon, AlertIcon, TrashIcon, StopIcon } from "./icons.jsx";
+import { plainText } from "../lib/plainText.js";
 
-// Chat scoped to one completed interview session. Grounded in that session's own
-// transcript + rubric feedback (see backend/src/services/chatService.js) - not a
-// general-purpose assistant, and not RAG (nothing is retrieved/searched, the one
-// relevant document is already known: this session).
+// Chat is scoped to one completed interview session. When RAG is enabled, the
+// backend also returns the source excerpts used for each answer.
 export default function SessionChat({ sessionId }) {
   const [messages, setMessages] = useState(null);
   const [llm, setLlm] = useState({ enabled: false });
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingText, setPendingText] = useState("");
+  const [pendingSources, setPendingSources] = useState([]);
+  const [interruptedText, setInterruptedText] = useState("");
   const [error, setError] = useState("");
+  const [documents, setDocuments] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [busyDocument, setBusyDocument] = useState(false);
   const logRef = useRef(null);
+  const streamController = useRef(null);
+  const partialReply = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -24,8 +31,12 @@ export default function SessionChat({ sessionId }) {
         setLlm(data.llm || { enabled: false });
       })
       .catch((err) => !cancelled && setError(err.message));
+    api.listSessionDocuments(sessionId)
+      .then((data) => !cancelled && setDocuments(data.documents))
+      .catch((err) => !cancelled && setError(err.message));
     return () => {
       cancelled = true;
+      streamController.current?.abort();
     };
   }, [sessionId]);
 
@@ -41,18 +52,70 @@ export default function SessionChat({ sessionId }) {
     if (!text || sending) return;
 
     setSending(true);
+    setPendingText("");
+    setPendingSources([]);
+    setInterruptedText("");
+    partialReply.current = "";
     setError("");
     setMessages((prev) => [...(prev || []), { role: "user", text, at: new Date().toISOString() }]);
     setDraft("");
+    const controller = new AbortController();
+    streamController.current = controller;
 
     try {
-      const data = await api.sendSessionChatMessage(sessionId, text);
-      setMessages(data.messages);
-      setLlm(data.llm || { enabled: false });
+      await api.streamSessionChatMessage(sessionId, text, (event) => {
+        if (event.type === "token") {
+          partialReply.current += event.text;
+          setPendingText(partialReply.current);
+        }
+        if (event.type === "sources") setPendingSources(event.sources);
+        if (event.type === "done") setMessages(event.messages);
+      }, controller.signal);
+    } catch (err) {
+      setError(err.name === "AbortError" ? "Reply stopped. Partial text was not saved." : err.message);
+      setInterruptedText(partialReply.current);
+      try {
+        setMessages((await api.getSessionChat(sessionId)).messages);
+      } catch {
+        // Keep the error from the failed stream visible.
+      }
+    } finally {
+      if (streamController.current === controller) streamController.current = null;
+      setSending(false);
+      setPendingText("");
+      setPendingSources([]);
+    }
+  }
+
+  async function handleUpload(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    if (!selectedFile || busyDocument) return;
+    setBusyDocument(true);
+    setError("");
+    try {
+      await api.uploadSessionDocument(sessionId, selectedFile);
+      setDocuments((await api.listSessionDocuments(sessionId)).documents);
+      setSelectedFile(null);
+      form.reset();
     } catch (err) {
       setError(err.message);
     } finally {
-      setSending(false);
+      setBusyDocument(false);
+    }
+  }
+
+  async function handleDeleteDocument(id) {
+    setBusyDocument(true);
+    setError("");
+    try {
+      await api.deleteSessionDocument(sessionId, id);
+      setDocuments((items) => items.filter((item) => item.id !== id));
+      setMessages((await api.getSessionChat(sessionId)).messages);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyDocument(false);
     }
   }
 
@@ -61,11 +124,35 @@ export default function SessionChat({ sessionId }) {
       <h3 className="mt-0">Ask about this interview</h3>
       <p className="muted chat-panel-caption">
         {llm.enabled
-          ? `Answers are written by ${llm.model} from your transcript, the question bank's key points and your scores. The scores themselves are fixed by the rubric. ${
-              llm.local ? "The model runs on this computer." : "Your transcript is sent to Google to generate each answer."
+          ? `Answers are written by ${llm.model} from your interview and, when configured, retrieved documents. Scores stay fixed by the rubric. ${
+              llm.local ? "Inference runs locally; data is stored in Supabase." : "Relevant interview and document text may be sent to Google."
             }`
           : "Scripted responses grounded in your transcript and scores. Configure a model on the backend (Gemini key or a local LM Studio server) to have one write them."}
       </p>
+
+      <div className="chat-documents">
+        <h4>Session documents</h4>
+        <p className="muted">CVs and job descriptions saved in your <a href="/documents">document library</a> are also available to this chat.</p>
+        {documents.length > 0 && (
+          <ul className="chat-document-list">
+            {documents.map((document) => (
+              <li key={document.id}>
+                <span>{document.filename}</span>
+                <button type="button" className="btn btn-sm" title={`Delete ${document.filename}`}
+                  aria-label={`Delete ${document.filename}`} disabled={busyDocument}
+                  onClick={() => handleDeleteDocument(document.id)}>
+                  <TrashIcon width={16} height={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form className="chat-document-form" onSubmit={handleUpload}>
+          <input type="file" accept=".pdf,.docx,.txt,.md" aria-label="Choose a PDF, DOCX, TXT or Markdown document"
+            onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} disabled={busyDocument} />
+          <button type="submit" className="btn btn-sm" disabled={!selectedFile || busyDocument}>Upload</button>
+        </form>
+      </div>
 
       <div
         className="chat-log"
@@ -78,7 +165,10 @@ export default function SessionChat({ sessionId }) {
         {messages &&
           messages.map((m, i) => (
             <div key={i} className={`chat-msg chat-msg-${m.role}`}>
-              {m.text}
+              {plainText(m.text)}
+              {m.sources?.length > 0 && <details className="chat-msg-note"><summary>Sources ({m.sources.length})</summary>
+                <ul>{m.sources.map((item) => <li key={item.id}>{item.label}{item.excerpt && <>: {item.excerpt}</>}</li>)}</ul>
+              </details>}
               {m.fallbackReason && (
                 <span className="chat-msg-note">
                   Scripted answer shown because {m.fallbackReason}.
@@ -88,9 +178,15 @@ export default function SessionChat({ sessionId }) {
           ))}
         {sending && (
           <div className="chat-msg chat-msg-assistant chat-msg-pending" role="status">
-            {llm.enabled ? "Thinking..." : "..."}
+            {plainText(pendingText) || (llm.enabled ? "Thinking..." : "...")}
+            {pendingSources.length > 0 && <details className="chat-msg-note"><summary>Sources ({pendingSources.length})</summary>
+              <ul>{pendingSources.map((item) => <li key={item.id}>{item.label}{item.excerpt && <>: {item.excerpt}</>}</li>)}</ul>
+            </details>}
           </div>
         )}
+        {!sending && interruptedText && <div className="chat-msg chat-msg-assistant chat-msg-pending">
+          {plainText(interruptedText)}<span className="chat-msg-note">Incomplete reply</span>
+        </div>}
       </div>
 
       {error && (
@@ -110,14 +206,16 @@ export default function SessionChat({ sessionId }) {
           disabled={messages === null || sending}
           aria-label="Ask about this interview"
         />
-        <button
+        {sending ? <button type="button" className="btn btn-secondary btn-sm" onClick={() => streamController.current?.abort()}>
+          <StopIcon width={16} height={16} /> Stop
+        </button> : <button
           type="submit"
           className="btn btn-primary btn-sm"
           disabled={messages === null || sending || !draft.trim()}
         >
           <SendIcon width={16} height={16} />
           Send
-        </button>
+        </button>}
       </form>
     </div>
   );
