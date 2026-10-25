@@ -12,15 +12,18 @@ async function defaultWrite(row) {
 }
 async function logAiRequest(entry, { write = defaultWrite } = {}) {
   const scope = context.getStore() || {};
+  const uuidOwner = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(scope.userId || '');
   const tokensIn = count(entry.tokens_in); const tokensOut = count(entry.tokens_out);
   const rate = pricing.models[entry.model];
   const cost = rate && tokensIn !== null && tokensOut !== null
     ? (tokensIn * rate.input + tokensOut * rate.output) / 1000000 : null;
   const row = {
     id: randomUUID(), created_at: new Date().toISOString(), request_id: scope.requestId || null,
-    user_id: scope.userId || null, capability: entry.capability || scope.capability || 'coach',
+    user_id: uuidOwner ? scope.userId : null, legacy_user_id: !uuidOwner ? scope.userId || null : null,
+    capability: entry.capability || scope.capability || 'coach',
     prompt_name: entry.prompt_name || scope.promptName || null, prompt_version: entry.prompt_version || scope.promptVersion || null,
-    model: entry.model || null, tools: [...new Set(entry.tools || [])].slice(0, 30),
+    model: entry.model || null, provider: entry.provider || null, operation: entry.operation || (entry.model ? 'unknown' : 'guardrail'),
+    tools: [...new Set(entry.tools || [])].slice(0, 30),
     tokens_in: tokensIn, tokens_out: tokensOut, latency_ms: Math.max(0, Math.round(entry.latency_ms || 0)),
     cost_usd: cost, status: entry.status || 'ok', error_code: entry.error_code || null, provider_status: entry.provider_status || null,
   };
@@ -34,6 +37,13 @@ function createRequestLog(meta, options) {
     note(value) { details = { ...details, ...value }; },
     async finish(error) {
       if (finished) return; finished = true;
+      // Suppress Long's outer summary when a provider attempt already owns the log.
+      const scope = context.getStore();
+      if (scope && !meta.legacyInvocation?.recorded) {
+        const recorded = scope.legacyAiOperations ||= new Map();
+        recorded.set(meta.operation, (recorded.get(meta.operation) || 0) + 1);
+        if (meta.legacyInvocation) meta.legacyInvocation.recorded = true;
+      }
       if (!error && meta.signal?.aborted) error = Object.assign(new Error('cancelled'), { name: 'AbortError' });
       const aborted = error?.name === 'AbortError' || /timed out|timeout/i.test(error?.message || '');
       const cancelled = error?.name === 'AbortError' && meta.signal?.aborted;
@@ -44,11 +54,11 @@ function createRequestLog(meta, options) {
         else health.recordFailure(error || { upstreamStatus: details.provider_status });
       }
       return logAiRequest({ ...meta, ...details, status,
-        tokens_in: details.usage?.promptTokenCount ?? details.usage?.inputTokenCount,
+        tokens_in: details.usage?.promptTokenCount ?? details.usage?.inputTokenCount ?? details.usage?.prompt_tokens,
         // Gemini totalTokenCount includes reasoning; output usage must include it too.
         tokens_out: (meta.capability === 'embed' && details.usage) ? 0
-          : details.usage && Number.isFinite(details.usage.candidatesTokenCount ?? details.usage.outputTokenCount)
-            ? (details.usage.candidatesTokenCount ?? details.usage.outputTokenCount) + (details.usage.thoughtsTokenCount || 0) : null,
+          : details.usage && Number.isFinite(details.usage.candidatesTokenCount ?? details.usage.outputTokenCount ?? details.usage.completion_tokens)
+            ? (details.usage.candidatesTokenCount ?? details.usage.outputTokenCount ?? details.usage.completion_tokens) + (details.usage.thoughtsTokenCount || 0) : null,
         latency_ms: performance.now() - start,
         error_code: cancelled ? 'cancelled' : error?.code || (error ? (aborted ? 'timeout' : 'provider_error') : details.error_code),
         provider_status: error?.upstreamStatus || details.provider_status,

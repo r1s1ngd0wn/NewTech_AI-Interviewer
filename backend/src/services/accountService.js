@@ -5,6 +5,7 @@ const documentService = require("./documentService");
 const { toPublicUser, httpError } = require("./authService");
 const context = require('../context/requestContext');
 const { adminClient, memoryPreview } = require('../db/supabase');
+const aiRequestLog = require('./aiRequestLogService');
 
 async function exportData(userId) {
   const user = memoryPreview() ? await store.users.get(userId) : context.getStore()?.user;
@@ -20,7 +21,8 @@ async function exportData(userId) {
   const documents = process.env.STORE_BACKEND === "memory" ? [] : await documentService.exportUserDocuments(userId);
   const scope = context.getStore();
   const plans = scope?.db ? await require('./planService').createPlanService(scope.db).list(userId) : [];
-  return { exportedAt: new Date().toISOString(), user: toPublicUser(user), sessions, documents, plans };
+  const aiRequests = await aiRequestLog.listForUser(userId);
+  return { exportedAt: new Date().toISOString(), user: toPublicUser(user), sessions, documents, plans, aiRequests };
 }
 
 async function deleteAccount(userId) {
@@ -30,6 +32,7 @@ async function deleteAccount(userId) {
   await sessionService.deleteAllSessionsForUser(userId);
   if (process.env.STORE_BACKEND !== "memory") await documentService.deleteAllUserDocuments(userId);
   if (!memoryPreview()) {
+    await aiRequestLog.deleteForUser(userId);
     const { error } = await adminClient().auth.admin.deleteUser(userId);
     if (error) throw httpError(503, 'could not delete authentication account');
     return;

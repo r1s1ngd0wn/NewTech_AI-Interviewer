@@ -4,8 +4,8 @@ class GeminiError extends Error {
 }
 async function requestJson({ system, contents, tools, signal, onToken, temperature = 0.2, maxOutputTokens = 1200, timeoutMs, model, responseSchema, validateOutput, meta = {} }) {
   model ||= process.env.GEMINI_MODEL || 'gemini-flash-latest';
-  return trackAiRequest({ ...meta, model, signal }, async note => {
-    if (!process.env.GEMINI_API_KEY || process.env.LLM_PROVIDER === 'none' || process.env.LLM_PROVIDER === 'local') throw new GeminiError('the LLM is not configured or is disabled', undefined, 'not_configured');
+  if (!process.env.GEMINI_API_KEY || process.env.LLM_PROVIDER === 'none' || process.env.LLM_PROVIDER === 'local') throw new GeminiError('the LLM is not configured or is disabled', undefined, 'not_configured');
+  return trackAiRequest({ ...meta, model, signal, provider: 'gemini', operation: responseSchema || validateOutput ? 'json' : 'tools' }, async note => {
     const controller = new AbortController();
     const abort = () => controller.abort();
     if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });

@@ -31,7 +31,7 @@ async function embedRequest(text, taskType = "RETRIEVAL_DOCUMENT", note = () => 
     const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
     if (!response.ok) throw Object.assign(new Error(`embedding provider returned ${response.status}`), { upstreamStatus: response.status });
     const data = await response.json();
-    note({ usage: data.usageMetadata, provider_status: response.status });
+    note({ usage: data.usageMetadata || data.usage, provider_status: response.status });
     const vector = active.provider === "gemini" ? data.embedding?.values : data.data?.[0]?.embedding;
     if (!Array.isArray(vector) || vector.some((value) => !Number.isFinite(value))) {
       throw new Error("embedding model returned an invalid vector");
@@ -56,6 +56,8 @@ async function embedRequest(text, taskType = "RETRIEVAL_DOCUMENT", note = () => 
 
 function embed(text, taskType = 'RETRIEVAL_DOCUMENT') {
   const active = config();
-  return trackAiRequest({ capability: 'embed', prompt_name: 'embedding', prompt_version: 'long-v1', model: active?.model, provider: active?.provider }, note => embedRequest(text, taskType, note));
+  if (!active) return Promise.reject(new Error('embedding provider is not configured'));
+  return trackAiRequest({ capability: 'embed', operation: taskType === 'RETRIEVAL_QUERY' ? 'embed_query' : 'embed_document',
+    prompt_name: 'embedding', prompt_version: 'long-v1', model: active.model, provider: active.provider }, note => embedRequest(text, taskType, note));
 }
 module.exports = { config, embed, DIMENSIONS };

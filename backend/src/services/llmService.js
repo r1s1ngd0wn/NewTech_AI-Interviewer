@@ -136,7 +136,7 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
       ...(withThinking && budget !== null ? { thinkingConfig: { thinkingBudget: budget } } : {}),
     },
   });
-  const send = (withThinking) => trackAiRequest({ ...meta, model }, async note => {
+  const send = (withThinking) => trackAiRequest({ ...meta, model, provider: 'gemini', operation: 'chat' }, async note => {
     const result = await postJson({
       url: `${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent`,
       headers: { "x-goog-api-key": apiKey },
@@ -211,12 +211,13 @@ function stripReasoning(text) {
   return text.replace(/<(think|thought|thinking)>[\s\S]*?<\/\1>/gi, "").trim();
 }
 
-async function generateLocal({ system, messages, temperature, maxOutputTokens, timeoutMs }) {
+async function generateLocal({ system, messages, temperature, maxOutputTokens, timeoutMs, meta }) {
   const cfg = localConfig();
   const turns = normalizeTurns(messages);
   if (!turns.length) throw new LlmError("there was nothing to send");
   const model = cfg.model || (await detectLocalModel(cfg));
 
+  return trackAiRequest({ ...meta, model, provider: 'local', operation: 'chat' }, async note => {
   const { res, data } = await postJson({
     url: `${cfg.baseUrl}/chat/completions`,
     headers: localHeaders(cfg),
@@ -237,9 +238,11 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
     const detail = raw ? `: ${String(raw).slice(0, 140)}` : "";
     throw new LlmError(`the local model server returned ${res.status}${detail}`, { status: res.status });
   }
+  note({ usage: data?.usage, provider_status: res.status });
   const text = stripReasoning(String(data?.choices?.[0]?.message?.content || ""));
   if (!text) throw new LlmError("the local model returned an empty answer");
   return text;
+  });
 }
 
 // ---- public ----------------------------------------------------------------------------
@@ -247,7 +250,8 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
 async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs, meta }) {
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
-  const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(), meta };
+  const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(),
+    meta: { ...meta, legacyInvocation: {} } };
   const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
   // The app never shows em/en dashes; models like to write them.
   return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
@@ -311,6 +315,7 @@ function reasoningFilter() {
 }
 
 async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, meta }) {
+  meta = { ...meta, legacyInvocation: {} };
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
   const controller = new AbortController();
@@ -320,7 +325,7 @@ async function* generateStream({ system, messages, temperature = 0.2, maxOutputT
   const turns = normalizeTurns(messages);
   const filter = reasoningFilter();
   const budget = active === "gemini" ? thinkingBudget() : null;
-  let log = createRequestLog({ ...meta, model: status().model, provider: active, signal });
+  let log = createRequestLog({ ...meta, model: status().model, provider: active, operation: 'chat_stream', signal });
   let failure;
   let visibleText = '';
   try {
@@ -352,17 +357,19 @@ async function* generateStream({ system, messages, temperature = 0.2, maxOutputT
       const detail = await response.json().catch(() => ({}));
       if (/think/i.test(detail?.error?.message || "")) {
         await log.finish(new LlmError('thinking configuration rejected', { status: 400 }));
-        log = createRequestLog({ ...meta, model: status().model, provider: active, signal });
+        log = createRequestLog({ ...meta, model: status().model, provider: active, operation: 'chat_stream', signal });
         delete body.generationConfig.thinkingConfig;
         response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
       }
     }
     if (!response.ok || !response.body) throw new LlmError(`${active} stream returned ${response.status}`, { status: response.status });
+    log.note({ provider_status: response.status, ...(active === 'local' ? { model: body.model } : {}) });
     for await (const data of parseSse(response.body)) {
       if (data === "[DONE]") break;
       let event;
       try { event = JSON.parse(data); } catch { continue; }
       if (event.usageMetadata) log.note({ usage: event.usageMetadata });
+      if (event.usage) log.note({ usage: event.usage });
       if (event.modelVersion) log.note({ model: event.modelVersion });
       if (event.error) throw new LlmError('the Gemini stream failed', { status: event.error.code });
       const token = active === "gemini"
