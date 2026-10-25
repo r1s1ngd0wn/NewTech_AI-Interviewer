@@ -1,6 +1,8 @@
 services:
   backend:
     build: ./backend
+    volumes:
+      - ./AI_USAGE.md:/app/AI_USAGE.md:ro
     ports:
       - "4000:4000"
     environment:

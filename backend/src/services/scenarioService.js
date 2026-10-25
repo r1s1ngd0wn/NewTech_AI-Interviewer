@@ -1,11 +1,40 @@
 const scenarios = require("../data/scenarios.json");
 
-function listScenarios({ industry, seniority, questionType } = {}) {
+function filteredScenarios({ industry, seniority, questionType } = {}) {
   return scenarios
     .filter((s) => !industry || s.industry === industry)
     .filter((s) => !seniority || s.seniority === seniority)
-    .filter((s) => !questionType || s.questionType === questionType)
-    .map(toSummary);
+    .filter((s) => !questionType || s.questionType === questionType);
+}
+
+function listScenarios({ industry, seniority, questionType } = {}) {
+  return filteredScenarios({ industry, seniority, questionType }).map(toSummary);
+}
+
+function browseScenarios({ q = "", industry, seniority, questionType, sort = "title-asc", page = 1, pageSize = 8 } = {}) {
+  const query = q.normalize("NFKC").trim().toLocaleLowerCase();
+  let results = filteredScenarios({ industry, seniority, questionType }).filter((scenario) => {
+    if (!query) return true;
+    return [scenario.title, scenario.industry, scenario.seniority, scenario.questionType]
+      .some((value) => value.normalize("NFKC").toLocaleLowerCase().includes(query));
+  });
+
+  const titleOrder = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }) || a.id.localeCompare(b.id);
+  if (sort === "title-desc") results.sort((a, b) => titleOrder(b, a));
+  else if (sort === "questions-desc") results.sort((a, b) => b.questions.length - a.questions.length || titleOrder(a, b));
+  else results.sort(titleOrder);
+
+  const total = results.length;
+  const totalPages = Math.ceil(total / pageSize);
+  const currentPage = totalPages ? Math.min(page, totalPages) : 1;
+  const offset = (currentPage - 1) * pageSize;
+  return {
+    scenarios: results.slice(offset, offset + pageSize).map(toSummary),
+    page: currentPage,
+    pageSize,
+    total,
+    totalPages,
+  };
 }
 
 function getScenario(id) {
@@ -41,4 +70,4 @@ function getFilterOptions() {
   };
 }
 
-module.exports = { listScenarios, getScenario, getPublicScenario, recommendFor, getFilterOptions };
+module.exports = { listScenarios, browseScenarios, getScenario, getPublicScenario, recommendFor, getFilterOptions };

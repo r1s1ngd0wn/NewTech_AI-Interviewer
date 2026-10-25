@@ -1,6 +1,6 @@
 # Person 3: setup and verification
 
-This branch implements US-01, US-02, US-10, US-11 and US-12 against Long_RAG commit `5e4e3e9`. Main and cloud-speech-trial are unchanged. Integration with the newer combined team main is still pending; see [TEAM_MERGE_AUDIT.md](TEAM_MERGE_AUDIT.md).
+This guide describes Đức's modules in the integrated team checkout: US-01, US-02, US-10, US-11 and US-12. The integration audit and verification evidence are recorded in [MERGE_VERIFICATION_2026-10-25.md](MERGE_VERIFICATION_2026-10-25.md); this file does not claim a new deployment or cloud migration.
 
 ## Supabase and Google
 
@@ -39,7 +39,7 @@ Existing legacy `user_...` accounts are not automatically merged with OAuth acco
 
 ## Agent and plans
 
-`POST /api/coach/chat` emits `status`, `token`, `sources`, `tool`, `action`, `done`, `error` SSE events. Gemini model response parts and function-call IDs are preserved, including thought signatures. Tokens come from the provider stream, not simulated typing. There are seven declared tools and a five-round limit, at most eight calls per round. User identity is obtained from authentication, never tool arguments.
+`POST /api/coach/chat` emits `status`, `token`, `sources`, `tool`, `action`, `done`, `error` SSE events. Gemini model response parts and function-call IDs are preserved, including thought signatures. Matching app-data replies can stream after the required read tool succeeds; CV/JD knowledge and comparison text are buffered until source/citation checks finish. There are seven declared tools and a five-round limit, at most eight calls per round. User identity is obtained from authentication, never tool arguments.
 
 Write tools save only a proposal. `POST /api/coach/actions/:id/confirm` locks the proposal row and executes its write in the same transaction. `.../cancel` permanently cancels it; it otherwise expires after ten minutes. Other users get 404. Repeat confirmation gets 409. A failed database write rolls the transaction back. Supabase row policies and immutable proposal payloads protect direct database access too.
 
@@ -68,11 +68,13 @@ npm.cmd run eval:duc --prefix backend
 
 Backend tests include real HTTP calls and an embedded PostgreSQL/pgvector execution of every migration with a minimal test implementation of Supabase-owned auth/storage schemas. They cover RLS, profile privilege escalation, revoked sessions, forged Storage paths, transactional rollback, expired/duplicate/cross-user actions, streaming/function signatures and fallback. This is not a replacement for testing Supabase Auth, Storage and OAuth against a real project.
 
-Latest local verification: backend 122/122 tests, frontend 15/15 tests, and the production Vite build pass. Frontend DOM tests cover session expiry/refresh, action confirmation/expiry, Google initiation, JWT-backed account loading, onboarding/returning-user navigation, callback errors, missing PKCE verifier, account-service failure, and recovery after a fresh sign-in. Separate tests exercise the installed Supabase SDK with intercepted HTTP to verify PKCE authorization, callback code exchange, persisted Google session, and denied callbacks. These tests send no requests to Google or hosted Supabase.
+Historical verification recorded on 2026-10-25: backend 122/122 tests and frontend 15/15 tests passed at that time. The 2026-10-26 hardening run passed backend 251/251, frontend 5 Node + 23 UI tests, and the production Vite build. New deferred-response tests cover logout, token expiry, account switch, login continuation and unmount. Frontend and SDK unit tests do not send requests to Google or hosted Supabase.
 
 Google sign-in code is ready for hosted provider configuration; there is no separate application callback exchange route because the Supabase SDK handles PKCE at `/login`. Someone with project permissions must complete steps 3–4 above, including both Google and Supabase redirect configuration. The local CLI configuration also leaves Google disabled until its credentials are supplied. A browser runtime was not connected, so visual/mobile QA and actual Google consent/login remain pending.
 
-`eval/duc-cases.json` defines six agent and two fallback cases in the team's `{id, capability, input, expect, type}` shape. The offline runner reuses their real behavioral tests and writes `eval/results/<date>-duc-v1-offline.json`. It is labelled offline: latency measures the test harness and cloud usage is zero. It does not claim to evaluate live model quality.
+Status update (2026-10-26): the user reported a successful Google login. This checkout did not independently inspect the hosted provider settings or repeat the browser login, so treat it as user-reported and replace the pending browser note only after recording a fresh verification.
+
+`eval/duc-cases.json` defines six agent and two fallback cases in the team's `{id, capability, input, expect, type}` shape. The offline runner reuses behavioral tests and writes a timestamped report with checker and prompt versions. It is labelled offline: latency measures the test harness and cloud usage is zero. It does not claim to evaluate live model quality. The separate live checker requires successful tool execution and a usable outcome; live Gemini was not called during this hardening run.
 
 After configuring a key, run `npm.cmd run eval:duc:live` from backend to evaluate six model-selection/refusal/proposal cases using synthetic application data. It makes paid Gemini requests, never modifies cloud application data, and writes separate live results including observed usage. Live checks have now run; see CLOUD_VERIFICATION.md for results and the current HTTP429 limitation. No full live pass or before/after model improvement is claimed. Set LIVE_EVAL_INTERVAL_MS to pace requests before starting their provider timeout when needed.
 

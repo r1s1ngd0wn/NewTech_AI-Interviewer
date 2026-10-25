@@ -8,6 +8,11 @@ export default function ScenariosPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [scenarios, setScenarios] = useState([]);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("title-asc");
+  const [page, setPage] = useState(1);
+  const [resultCount, setResultCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [filters, setFilters] = useState({ industries: [], seniorities: [], questionTypes: [] });
   const [activeFilters, setActiveFilters] = useState({});
   const [recommendedIds, setRecommendedIds] = useState(new Set());
@@ -26,12 +31,19 @@ export default function ScenariosPage() {
   useEffect(() => {
     setLoading(true);
     setError("");
-    api
-      .listScenarios(activeFilters)
-      .then((data) => setScenarios(data.scenarios))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [activeFilters]);
+    let current = true;
+    api.browseScenarios({ ...activeFilters, q: search.trim(), sort, page })
+      .then((data) => {
+        if (!current) return;
+        setScenarios(data.scenarios);
+        setResultCount(data.total);
+        setTotalPages(data.totalPages);
+        if (data.page !== page) setPage(data.page);
+      })
+      .catch((err) => { if (current) setError(err.message); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [activeFilters, search, sort, page]);
 
   useEffect(() => {
     if (!user?.profile?.targetIndustry) {
@@ -46,6 +58,7 @@ export default function ScenariosPage() {
 
   function toggleFilter(key, value) {
     setActiveFilters((prev) => ({ ...prev, [key]: prev[key] === value ? undefined : value }));
+    setPage(1);
   }
 
   return (
@@ -56,7 +69,29 @@ export default function ScenariosPage() {
         Choose a scenario, then add your CV or job description before the interview to put its questions in context.
       </p>
 
-      <div className="filter-bar">
+      <div className="scenario-toolbar">
+        <label className="scenario-search">
+          <span>Search scenarios</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+            placeholder="Name, industry, level or question type"
+            maxLength={100}
+          />
+          <span className="muted">Searches scenario details, not interview question text.</span>
+        </label>
+        <label className="scenario-sort">
+          Sort by
+          <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
+            <option value="title-asc">Name A–Z</option>
+            <option value="title-desc">Name Z–A</option>
+            <option value="questions-desc">Most questions</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="filter-bar" aria-label="Filter scenarios">
         <FilterGroup
           label="Industry"
           options={filters.industries}
@@ -75,6 +110,11 @@ export default function ScenariosPage() {
           value={activeFilters.questionType}
           onSelect={(v) => toggleFilter("questionType", v)}
         />
+      </div>
+
+      <div className="scenario-results" aria-live="polite">
+        <span>{loading ? "Searching scenarios…" : `${resultCount} ${resultCount === 1 ? "scenario" : "scenarios"} found`}</span>
+        {!loading && resultCount > 0 && <span>Page {page} of {totalPages}</span>}
       </div>
 
       {error && <div className="form-error">{error}</div>}
@@ -115,6 +155,16 @@ export default function ScenariosPage() {
           ))}
         </div>
       )}
+
+      {!loading && totalPages > 1 && <nav className="scenario-pagination" aria-label="Scenario pages">
+        <button className="btn btn-secondary" type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
+          Previous
+        </button>
+        <span>Page {page} of {totalPages}</span>
+        <button className="btn btn-secondary" type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages}>
+          Next
+        </button>
+      </nav>}
     </div>
   );
 }
@@ -122,18 +172,21 @@ export default function ScenariosPage() {
 function FilterGroup({ label, options, value, onSelect }) {
   if (!options?.length) return null;
   return (
-    <div className="row wrap" style={{ gap: "0.4rem" }}>
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          className={`filter-btn ${value === option ? "active" : ""}`}
-          onClick={() => onSelect(option)}
-          aria-pressed={value === option}
-        >
-          {option}
-        </button>
-      ))}
+    <div className="scenario-filter-group">
+      <span>{label}</span>
+      <div className="row wrap" style={{ gap: "0.4rem" }}>
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={`filter-btn ${value === option ? "active" : ""}`}
+            onClick={() => onSelect(option)}
+            aria-pressed={value === option}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,9 @@
 # Cloud verification — 2026-10-25 (Asia/Saigon)
 
+## Current status note — 2026-10-26
+
+The user reported that Google sign-in now succeeds in their app after the provider setup. This is user-reported evidence only: this run did not inspect the hosted Supabase/Google settings or repeat the browser flow. Keep the 2026-10-25 checks below as historical observations, not the current provider state. A fresh browser/cloud check should record the project and date without exposing credentials.
+
 Credentials were read only from ignored local environment files. No keys or passwords are included here.
 
 ## Verified against actual services
@@ -34,7 +38,7 @@ Initial auth/plan checks used server-only diagnostic clients and actual user ses
 ## Still required
 
 - Public-key setup is complete. Secret/private keys remain backend-only; both .env files are ignored by Git.
-- Enable and configure the Google Auth provider; Auth settings currently report Google disabled.
+- As of the 2026-10-25 inspection, Google Auth was reported disabled. The user later reported a successful Google login (see the 2026-10-26 status note); independently inspect current provider/redirect settings only if fresh cloud evidence is required.
 - Browser Google login, admin/user UI checks and mobile/visual QA.
 - Render/Vercel deployment, final CORS and redirect URLs, and deployed end-to-end checks.
 - Initial live eval was 5/6; the failed planning case passed when retried separately. A diagnostic rerun finished 2/6: the other four cases received HTTP429 from Gemini and correctly returned fallback. Further cloud model requests were stopped. The initial report and the intermediate run affected by harness delay are preserved separately in backend/eval/results; the latest report records safe transport error codes and unknown usage as null. No full live pass rate is claimed.

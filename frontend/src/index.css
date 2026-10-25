@@ -408,9 +408,64 @@ p {
 }
 .filter-bar {
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
   gap: var(--spacing-8);
   margin-bottom: var(--spacing-24);
+}
+.scenario-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
+  gap: var(--spacing-16);
+  align-items: end;
+  margin: var(--spacing-24) 0 var(--spacing-16);
+}
+.scenario-search,
+.scenario-sort,
+.scenario-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  min-width: 0;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+.scenario-search input,
+.scenario-sort select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--radius-card);
+  background: var(--color-porcelain);
+  color: var(--color-charcoal);
+  font: inherit;
+}
+.scenario-search .muted {
+  font-weight: 400;
+}
+.scenario-filter-group > span {
+  font-weight: 600;
+}
+.scenario-results,
+.scenario-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+}
+.scenario-results {
+  margin-bottom: var(--spacing-16);
+  color: var(--color-smoke);
+  font-size: var(--text-body-sm);
+}
+.scenario-pagination {
+  justify-content: center;
+  margin-top: var(--spacing-24);
+}
+.scenario-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 .filter-btn {
   border: 1px solid var(--color-hairline);
@@ -457,6 +512,14 @@ p {
   border-radius: var(--radius-card);
   border: 1px solid var(--color-hairline);
   background: var(--color-mist);
+}
+@media (max-width: 600px) {
+  .scenario-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .scenario-pagination {
+    justify-content: space-between;
+  }
 }
 
 /* --- Hero (login page) -------------------------------------------------*/

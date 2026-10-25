@@ -26,6 +26,16 @@ test('agent reads real owner sessions and returns signed tool results to Gemini'
   assert.equal(events.find(e => e.type === 'tool').name, 'list_sessions');
 });
 
+test('an empty session result produces a fixed no-data answer, not model-invented history', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  const events = []; let round = 0;
+  const result = await runAgent({ user: { id: 'alice' }, message: 'List my practice sessions', onEvent: e => events.push(e),
+    execute: async () => [],
+    generate: async () => ++round === 1 ? call('list_sessions') : ({ text: 'You completed twelve sessions.', calls: [] }) });
+  assert.equal(result.text, 'You have no practice sessions yet.');
+  assert.doesNotMatch(events.filter(e => e.type === 'token').map(e => e.text).join(''), /twelve/);
+});
+
 test('agent emits a pending action without creating a plan', async () => {
   const { runAgent } = require('../src/agent/agent');
   const plans = createMemoryPlanService(); const actions = createMemoryActionService(plans);
@@ -38,6 +48,14 @@ test('agent emits a pending action without creating a plan', async () => {
   assert.equal(events.filter(e => e.type === 'action').length, 1);
   assert.equal(result.actions.length, 1);
   assert.match(result.text, /confirm/i);
+});
+
+test('agent asks for an existing item ID instead of inventing an update', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  const result = await runAgent({ user: { id: 'alice' }, message: 'Update my practice plan item date', onEvent() {},
+    generate: async () => ({ text: 'I updated the date.', calls: [] }) });
+  assert.match(result.text, /plan item ID shown on the Plans page/i);
+  assert.deepEqual(result.actions, []);
 });
 
 test('agent stops after five tool rounds', async () => {
@@ -161,14 +179,70 @@ test('model failure after retrieval returns cited excerpts when no text was visi
   }
 });
 
-test('model interruption preserves an already visible non-comparison partial reply', async () => {
+test('model interruption never exposes an unvalidated partial knowledge reply', async () => {
   const { runAgent } = require('../src/agent/agent');
   const events = []; let round = 0;
-  await assert.rejects(runAgent({ user: { id: 'alice' }, message: 'What does my CV say?',
+  const result = await runAgent({ user: { id: 'alice' }, message: 'What does my CV say?',
     onEvent: e => events.push(e), retrieve: async () => [{ id: 'cv', label: 'CV', text: 'Built APIs' }],
     generate: async ({ onToken }) => {
       if (++round === 1) return call('search_knowledge', { query: 'CV' });
-      onToken('Partial reply'); throw new Error('timeout');
-    } }), { status: 503 });
-  assert.deepEqual(events.filter(e => e.type === 'token').map(e => e.text), ['Partial reply']);
+      onToken('Unsupported partial reply'); throw new Error('timeout');
+    } });
+  assert.equal(result.source, 'rag-extractive');
+  assert.doesNotMatch(events.filter(e => e.type === 'token').map(e => e.text).join(''), /Unsupported partial reply/);
+  assert.equal(events.filter(e => e.type === 'token').length, 1);
+});
+
+test('CV factual claims require search evidence and a valid citation before emitting text', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  for (const mode of ['skip-search', 'wrong-tool', 'bad-citation']) {
+    const events = []; let round = 0;
+    const result = await runAgent({ user: { id: 'alice' }, message: 'What does my CV say?', onEvent: e => events.push(e),
+      retrieve: async () => [{ id: 'cv', label: 'CV: resume', text: 'Built APIs' }],
+      generate: async ({ onToken }) => {
+        if (mode !== 'skip-search' && ++round === 1) return call(mode === 'wrong-tool' ? 'list_sessions' : 'search_knowledge', { query: 'CV' });
+        onToken('I invented a prior job');
+        return { text: mode === 'bad-citation' ? 'I invented a prior job [99]' : 'I invented a prior job', calls: [] };
+      } });
+    assert.doesNotMatch(events.filter(e => e.type === 'token').map(e => e.text).join(''), /invented a prior job/);
+    assert.notEqual(result.text, 'I invented a prior job');
+  }
+});
+
+test('a question-bank result cannot answer a CV-specific request', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  for (const interrupted of [false, true]) {
+    const events = []; let round = 0;
+    const result = await runAgent({ user: { id: 'alice' }, message: 'What does my CV say?', onEvent: e => events.push(e),
+      retrieve: async () => [{ id: 'q1', label: 'Junior Software Engineer - Behavioral / q1', sourceType: 'question', text: 'General answer guidance' }],
+      generate: async ({ onToken }) => {
+        if (++round === 1) return call('search_knowledge', { query: 'CV' });
+        if (interrupted) throw new Error('timeout');
+        onToken('Your CV says you led a team [1].');
+        return { text: 'Your CV says you led a team [1].', calls: [] };
+      } });
+    assert.doesNotMatch(result.text, /led a team|General answer guidance/i);
+    assert.deepEqual(events.filter(event => event.type === 'token').map(event => event.text), ["I couldn't find an answer in your documents or the question bank."]);
+  }
+});
+
+test('app-data replies still stream after the matching read succeeds', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  const events = []; let round = 0;
+  const result = await runAgent({ user: { id: 'alice' }, message: 'List my practice sessions', onEvent: e => events.push(e),
+    execute: async () => [{ id: 's1', status: 'scored' }],
+    generate: async ({ onToken }) => {
+      if (++round === 1) return call('list_sessions');
+      onToken('You have one session.');
+      assert.deepEqual(events.filter(event => event.type === 'token').map(event => event.text), ['You have one session.']);
+      return { text: 'You have one session.', calls: [] };
+    } });
+  assert.equal(result.text, 'You have one session.');
+  assert.deepEqual(events.filter(event => event.type === 'token').map(event => event.text), ['You have one session.']);
+});
+
+test('greetings use a fixed response without calling the model', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  const result = await runAgent({ user: { id: 'alice' }, message: 'Hello', onEvent() {}, generate: async () => assert.fail('greeting must not call model') });
+  assert.match(result.text, /interview practice/i);
 });

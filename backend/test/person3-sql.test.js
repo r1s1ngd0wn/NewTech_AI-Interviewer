@@ -6,7 +6,10 @@ const { PGlite } = require('@electric-sql/pglite');
 const { vector } = require('@electric-sql/pglite-pgvector');
 const ALICE = '00000000-0000-4000-8000-000000000001';
 const BOB = '00000000-0000-4000-8000-000000000002';
-const SESSION = '10000000-0000-4000-8000-000000000001';
+const SESSIONS = {
+  [ALICE]: '10000000-0000-4000-8000-000000000001',
+  [BOB]: '10000000-0000-4000-8000-000000000002',
+};
 
 test('all migrations execute; database enforces roles, ownership and atomic confirmations', async t => {
   const db = new PGlite({ extensions: { vector } });
@@ -32,23 +35,34 @@ test('all migrations execute; database enforces roles, ownership and atomic conf
   for (const file of readdirSync(dir).filter(f => f.endsWith('.sql')).sort()) await db.exec(readFileSync(path.join(dir, file), 'utf8'));
   await db.query('insert into auth.users(id,raw_user_meta_data) values($1,$3),($2,$3)', [ALICE, BOB, JSON.stringify({ name: 'Alice', role: 'admin' })]);
   assert.equal((await db.query('select role from profiles where id=$1', [ALICE])).rows[0].role, 'user');
-  await db.query('insert into auth.sessions values($1,$2)', [SESSION, ALICE]);
+  await db.query('insert into auth.sessions values($1,$2),($3,$4)', [SESSIONS[ALICE], ALICE, SESSIONS[BOB], BOB]);
   async function asUser(user, operation) {
     await db.exec('set role authenticated');
-    await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: user, session_id: SESSION })]);
+    await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: user, session_id: SESSIONS[user] })]);
     try { return await operation(); } finally { await db.exec('reset role'); }
   }
   const payload = { title: 'Week', items: [{ scenarioId: 'scn_swe_junior_behavioral', scheduledDate: '2026-11-01', status: 'scheduled' }] };
+  const alicePlan = await asUser(ALICE, async () => (await db.query('select create_practice_plan($1) as plan', [JSON.stringify(payload)])).rows[0].plan);
+  const bobPlan = await asUser(BOB, async () => (await db.query('select create_practice_plan($1) as plan', [JSON.stringify({ ...payload, title: 'Bob week' })])).rows[0].plan);
   await asUser(ALICE, async () => {
+    assert.equal((await db.query('select public.is_session_active() as active')).rows[0].active, true);
     await assert.rejects(db.exec("update profiles set role='admin'"), /permission denied/);
     const profile = await db.exec("update profiles set target_industry='Technology',target_role='Engineer',experience_level='Junior' returning onboarding_complete");
     assert.equal(profile[0].rows[0].onboarding_complete, true);
   });
   const action = await asUser(ALICE, async () => (await db.query('select propose_coach_action($1,$2) as action', ['create_practice_plan', JSON.stringify(payload)])).rows[0].action);
-  assert.equal((await db.query('select count(*)::int as count from practice_plans')).rows[0].count, 0);
+  assert.equal((await db.query('select count(*)::int as count from practice_plans')).rows[0].count, 2);
   await asUser(BOB, async () => {
+    assert.equal((await db.query('select public.is_session_active() as active')).rows[0].active, true);
     assert.equal((await db.query('select * from pending_actions')).rows.length, 0);
-    await assert.rejects(db.query('select confirm_coach_action($1)', [action.id]));
+    assert.deepEqual((await db.query('select id from practice_plans')).rows.map(row => row.id), [bobPlan.id]);
+    assert.deepEqual((await db.query('select id from practice_plans where id=$1', [alicePlan.id])).rows, []);
+    assert.deepEqual((await db.query("update practice_plans set title='stolen' where id=$1 returning id", [alicePlan.id])).rows, []);
+    assert.deepEqual((await db.query('delete from practice_plans where id=$1 returning id', [alicePlan.id])).rows, []);
+    await assert.rejects(db.query('select confirm_coach_action($1)', [action.id]), error => error.code === 'P0002');
+    assert.equal((await db.query('select title from practice_plans where id=$1', [bobPlan.id])).rows[0].title, 'Bob week');
+    await db.query('insert into interviewai_sessions(id,value) values($1,$2)', ['owned-bob', JSON.stringify({ id: 'owned-bob', userId: BOB })]);
+    assert.deepEqual((await db.query('select id from interviewai_sessions')).rows.map(row => row.id), ['owned-bob']);
   });
   await asUser(ALICE, async () => {
     await assert.rejects(db.query("update pending_actions set payload='{}' where id=$1", [action.id]), /permission denied/);
@@ -65,13 +79,13 @@ test('all migrations execute; database enforces roles, ownership and atomic conf
       values('forged-doc',$1,'cv','cv.txt','text/plain',$2,'private')`, [ALICE, `${BOB}/library/private.txt`]), /check constraint|row-level security/);
   });
   await asUser(BOB, async () => {
-    assert.equal((await db.query('select * from practice_plans')).rows.length, 0);
-    assert.equal((await db.query('select * from interviewai_sessions')).rows.length, 0);
+    assert.deepEqual((await db.query('select id from practice_plans')).rows.map(row => row.id), [bobPlan.id]);
+    assert.deepEqual((await db.query('select id from interviewai_sessions')).rows.map(row => row.id), ['owned-bob']);
   });
   const expired = await asUser(ALICE, async () => (await db.query('select propose_coach_action($1,$2) as action', ['create_practice_plan', JSON.stringify(payload)])).rows[0].action);
   await db.query("update pending_actions set expires_at=now()-interval '1 second' where id=$1", [expired.id]);
   await asUser(ALICE, async () => { await assert.rejects(db.query('select confirm_coach_action($1)', [expired.id]), /expired/); });
-  await db.query('delete from auth.sessions where id=$1', [SESSION]);
+  await db.query('delete from auth.sessions where id=$1', [SESSIONS[ALICE]]);
   await asUser(ALICE, async () => {
     assert.equal((await db.query('select is_session_active() as active')).rows[0].active, false);
     assert.equal((await db.query('select * from practice_plans')).rows.length, 0);

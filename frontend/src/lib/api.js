@@ -101,6 +101,13 @@ export const api = {
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return request(`/scenarios${suffix}`, { auth: false });
   },
+  browseScenarios: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")),
+    );
+    const suffix = qs.toString() ? "?" + qs.toString() : "";
+    return request("/scenarios/browse" + suffix, { auth: false });
+  },
   scenarioFilters: () => request("/scenarios/filters", { auth: false }),
   recommendedScenarios: () => request("/scenarios/recommended"),
   getScenario: (id) => request(`/scenarios/${id}`, { auth: false }),
@@ -149,4 +156,11 @@ export const api = {
     request(`/sessions/${id}/documents/${documentId}`, { method: "DELETE" }),
 
   getProgress: () => request("/progress"),
+
+  getAdminAiUsage: (range = 30) => request(`/admin/ai-usage?range=${encodeURIComponent(range)}`),
+  getAdminAiUsageLog: () => request('/admin/ai-usage-log'),
+  listAdminAiLogs: (params = {}) => {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)));
+    return request(`/admin/ai-logs?${qs.toString()}`);
+  },
 };

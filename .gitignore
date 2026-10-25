@@ -1,6 +1,7 @@
 /InterviewAI_SRS.docx
 /InterviewAI_SRS_original_backup.docx
 /ARCHITECTURE.md
+/Final_Project_Assignment_2026-2027.docx
 /archive.zip
 /Dockerfile
 /.claude
@@ -8,3 +9,12 @@
 *.log
 /supabase/.temp/
 /.audit/
+
+# Local source documents and reference screenshots
+*.docx
+/Image Task/
+
+# Generated presentation files and temporary build artifacts
+/output/
+/.codex-ppt-build/
+/.chart-data-*/

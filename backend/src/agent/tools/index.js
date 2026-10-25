@@ -31,7 +31,7 @@ async function executeTool(name, args, ctx) {
   if (name === 'search_knowledge') {
     if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 500) throw httpError(400, 'query must contain 1 to 500 characters');
     const matches = await (ctx.retrieve || rag.retrieveKnowledge)(userId, args.query, 5);
-    return { sources: matches.map((m, index) => ({ id: m.id, label: m.label || m.source?.label || 'Source',
+    return { sources: matches.map((m, index) => ({ id: m.id, label: m.label || m.source?.label || 'Source', sourceType: m.sourceType || null,
       text: guard.sanitizeSourceText(m.text || m.content).slice(0, 2500), number: index + 1 })) };
   }
   if (name === 'list_sessions') {
