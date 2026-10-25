@@ -4,6 +4,7 @@ const scenarioService = require("./scenarioService");
 const aiSimulator = require("./aiSimulator");
 const scoringService = require("./scoringService");
 const llmService = require("./llmService");
+const critiqueService = require("./critiqueService");
 const documentService = require("./documentService");
 const ragService = require("./ragService");
 const embeddingService = require("./embeddingService");
@@ -11,6 +12,13 @@ const { httpError } = require("./authService");
 
 const STALE_SESSION_MS = 2 * 60 * 60 * 1000;
 const MAX_ANSWER_LENGTH = 4000;
+// How long finishing waits for model reviews still running in the background. Model latency is
+// uneven (5-20 s per review on a free tier), so this is short: reviews that are not ready show up
+// on the feedback page when they arrive (see critiquesPending in withCritiques).
+const CRITIQUE_WAIT_MS = 6000;
+
+// sessionId -> promises of reviews still being written by the model.
+const pendingCritiques = new Map();
 
 async function startSession(userId, scenarioId) {
   const scenario = scenarioService.getScenario(scenarioId);
@@ -119,6 +127,8 @@ async function submitAnswer(userId, sessionId, answerText, inputMode) {
     answerText: String(answerText || "").trim(),
     inputMode: normalizeInputMode(inputMode),
     answeredAt: new Date().toISOString(),
+    // Always present; replaced by the model's review when one arrives (see startCritique).
+    critique: critiqueService.scriptedCritique(currentQuestion, answerText),
   });
 
   const next = aiSimulator.nextTurn(scenario, session);
@@ -129,12 +139,63 @@ async function submitAnswer(userId, sessionId, answerText, inputMode) {
   return { session: toPublicSession(session), next };
 }
 
+// Starts the model's review of the newest answer without making the interview wait for it: the
+// scripted review is already stored, and the model's replaces it when it arrives. The write only
+// touches that one turn (setTurnCritique), so it cannot overwrite an answer submitted meanwhile.
+// LLM_CRITIQUE=off keeps the model for the chat only (saves quota on free API tiers).
+async function startCritique(userId, sessionId) {
+  if (!llmService.isEnabled() || process.env.LLM_CRITIQUE === "off") return;
+  const session = await getOwnedSession(userId, sessionId);
+  const index = session.turns.length - 1;
+  const turn = session.turns[index];
+  const scenario = effectiveScenario(session, scenarioService.getScenario(session.scenarioId));
+  const question = scenario?.questions.find((q) => q.id === turn.questionId);
+
+  const job = critiqueService
+    .critiqueAnswer(question, turn.answerText)
+    .then((critique) => store.sessions.setTurnCritique(sessionId, index, turn.questionId, critique))
+    .catch(() => {})
+    .finally(() => {
+      const jobs = pendingCritiques.get(sessionId);
+      jobs?.delete(job);
+      if (jobs && !jobs.size) pendingCritiques.delete(sessionId);
+    });
+  if (!pendingCritiques.has(sessionId)) pendingCritiques.set(sessionId, new Set());
+  pendingCritiques.get(sessionId).add(job);
+}
+
+// Lets finishing pick up reviews that are almost done, but never for longer than CRITIQUE_WAIT_MS;
+// whatever is not ready stays scripted until it arrives.
+async function waitForCritiques(userId, sessionId, timeoutMs = CRITIQUE_WAIT_MS) {
+  await getOwnedSession(userId, sessionId); // ownership check
+  const jobs = pendingCritiques.get(sessionId);
+  if (!jobs?.size) return;
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  await Promise.race([Promise.all([...jobs]), timeout]);
+  clearTimeout(timer);
+}
+
+// Per-answer reviews live on the turns, not in the stored feedback, so a review that finishes
+// after scoring still shows up the next time the feedback is read.
+function withCritiques(feedback, session) {
+  if (!feedback) return feedback;
+  return {
+    ...feedback,
+    critiquesPending: pendingCritiques.has(session.id),
+    highlights: feedback.highlights.map((h, i) => ({ ...h, critique: session.turns[i]?.critique || null })),
+  };
+}
+
 // submitAnswer() plus an LLM-written interviewer reaction when one is configured. Any
 // failure (no key, timeout, rejected output) silently keeps the scripted reaction, and the
 // next question always comes from the scenario list.
 async function answerTurn(userId, sessionId, answerText, inputMode) {
   const result = await submitAnswer(userId, sessionId, answerText, inputMode);
   result.next.reactionSource = "scripted";
+  await startCritique(userId, sessionId);
   // LLM_REACTIONS=off keeps the model for the chat only (saves quota on free API tiers).
   if (!llmService.isEnabled() || process.env.LLM_REACTIONS === "off") return result;
 
@@ -152,7 +213,7 @@ async function answerTurn(userId, sessionId, answerText, inputMode) {
 async function finishSession(userId, sessionId) {
   const session = await getOwnedSession(userId, sessionId);
   if (session.status === "scored") {
-    return store.feedbacks.get(sessionId);
+    return withCritiques(await store.feedbacks.get(sessionId), session);
   }
   if (session.turns.length === 0) {
     throw httpError(400, "cannot finish a session with no answers");
@@ -171,7 +232,7 @@ async function finishSession(userId, sessionId) {
       console.error("Could not pre-index interview for RAG:", error.message);
     }
   }
-  return feedback;
+  return withCritiques(feedback, session);
 }
 
 async function getSession(userId, sessionId) {
@@ -181,10 +242,10 @@ async function getSession(userId, sessionId) {
 }
 
 async function getFeedback(userId, sessionId) {
-  await getOwnedSession(userId, sessionId); // ownership check
+  const session = await getOwnedSession(userId, sessionId); // ownership check
   const feedback = await store.feedbacks.get(sessionId);
   if (!feedback) throw httpError(404, "feedback not available yet, finish the session first");
-  return feedback;
+  return withCritiques(feedback, session);
 }
 
 async function removeSessionData(sessionId) {
@@ -192,6 +253,7 @@ async function removeSessionData(sessionId) {
   await store.sessionChats.delete(sessionId);
   await store.feedbacks.delete(sessionId);
   await store.sessions.delete(sessionId);
+  pendingCritiques.delete(sessionId);
 }
 
 async function deleteSession(userId, sessionId) {
@@ -218,6 +280,16 @@ async function removeDocumentContext(userId, sessionId, documentId) {
   await store.sessionChats.delete(sessionId);
 }
 
+async function removeDocumentChatReferences(userId, sessionId, documentId) {
+  await getOwnedSession(userId, sessionId);
+  const chat = await store.sessionChats.get(sessionId);
+  if (chat?.some((message) => message.sources?.some((source) =>
+    source.documentId === documentId || source.id?.startsWith(`${documentId}-`) ||
+    source.id?.includes(`-${documentId}-`)))) {
+    await store.sessionChats.delete(sessionId);
+  }
+}
+
 async function deleteAllSessionsForUser(userId) {
   for (const session of await listSessionsForUser(userId)) {
     await removeSessionData(session.id);
@@ -239,8 +311,7 @@ async function purgeStaleSessions(maxAgeMs = STALE_SESSION_MS) {
 }
 
 async function listSessionsForUser(userId) {
-  return (await store.sessions.values())
-    .filter((s) => s.userId === userId)
+  return (await store.sessions.valuesByUser(userId))
     .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
 }
 
@@ -257,7 +328,8 @@ function toPublicSession(session) {
     id: session.id,
     scenarioId: session.scenarioId,
     status: session.status,
-    turns: session.turns,
+    // Reviews quote the question bank's key points, so they are shown only after scoring.
+    turns: session.status === "scored" ? session.turns : session.turns.map(({ critique, ...turn }) => turn),
     startedAt: session.startedAt,
     endedAt: session.endedAt,
     preparedAt: session.preparedAt || null,
@@ -270,11 +342,13 @@ module.exports = {
   effectiveScenario,
   submitAnswer,
   answerTurn,
+  waitForCritiques,
   finishSession,
   getSession,
   getFeedback,
   deleteSession,
   removeDocumentContext,
+  removeDocumentChatReferences,
   deleteAllSessionsForUser,
   purgeStaleSessions,
   listSessionsForUser,

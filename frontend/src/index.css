@@ -557,6 +557,61 @@ p {
   background: var(--color-mist);
   border: 1px solid var(--color-hairline);
 }
+/* Per-answer review under a transcript excerpt */
+.critique {
+  margin-top: var(--spacing-16);
+  padding-top: var(--spacing-12);
+  border-top: 1px solid var(--color-hairline);
+  font-size: var(--text-body-sm);
+}
+.critique summary {
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  flex-wrap: wrap;
+}
+.critique-source {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--color-smoke);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  background: var(--color-porcelain);
+}
+.critique-group {
+  margin-top: var(--spacing-12);
+}
+.critique-group p,
+.critique-group ul {
+  margin: 4px 0 0;
+}
+.critique-group ul {
+  padding-left: 1.25rem;
+}
+.critique-label {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-smoke);
+}
+.critique-label.good {
+  color: #2f6b38;
+}
+.critique-label.warn {
+  color: #8a4b00;
+}
+.critique-note {
+  margin: var(--spacing-8) 0 0;
+}
+.critique-warning {
+  margin: var(--spacing-8) 0 0;
+  color: #8a4b00;
+  font-weight: 600;
+}
 .data-card {
   margin-top: var(--spacing-24);
 }
@@ -745,6 +800,7 @@ p {
   margin-bottom: var(--spacing-16);
 }
 .chat-msg {
+  white-space: pre-line;
   border-radius: var(--radius-card);
   padding: var(--spacing-12) var(--spacing-16);
   font-size: var(--text-body-sm);

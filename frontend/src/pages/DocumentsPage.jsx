@@ -63,7 +63,7 @@ export default function DocumentsPage() {
         onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
       <button className="btn btn-primary btn-sm" type="submit" disabled={!file || busy}>{busy ? "Working..." : "Upload"}</button>
     </form>
-    <p className="muted">PDF, DOCX, TXT or Markdown, up to 5 MB. PDFs need selectable text.</p>
+    <p className="muted">PDF, DOCX, TXT or Markdown, up to 5 MB and 100,000 extracted characters. PDFs need selectable text. Maximum 10 documents.</p>
     {error && <div className="form-error" role="alert"><AlertIcon width={16} height={16} />{error}</div>}
     {documents.length === 0 ? <p className="muted">No documents uploaded yet.</p> :
       <ul className="document-library-list">{documents.map((document) => <li key={document.id}>

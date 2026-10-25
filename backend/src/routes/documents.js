@@ -3,7 +3,6 @@ const multer = require("multer");
 const requireAuth = require("../middleware/requireAuth");
 const documentService = require("../services/documentService");
 const sessionService = require("../services/sessionService");
-const store = require("../store");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -36,7 +35,7 @@ router.delete("/:id", async (req, res, next) => {
     await documentService.deleteUserDocument(req.user.id, req.params.id);
     for (const session of await sessionService.listSessionsForUser(req.user.id)) {
       await sessionService.removeDocumentContext(req.user.id, session.id, req.params.id);
-      await store.sessionChats.delete(session.id);
+      await sessionService.removeDocumentChatReferences(req.user.id, session.id, req.params.id);
     }
     res.status(204).end();
   } catch (error) { next(error); }

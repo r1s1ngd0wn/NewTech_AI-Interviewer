@@ -12,6 +12,19 @@ async function request(path, options = {}, token) {
   return data;
 }
 
+async function coachAnswer(token, message) {
+  const response = await fetch(base + "/coach/chat", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ message }),
+  });
+  if (!response.ok) throw new Error(`coach request returned ${response.status}`);
+  const events = (await response.text()).split(/\r?\n\r?\n/).map((block) => {
+    const line = block.split(/\r?\n/).find((part) => part.startsWith("data: "));
+    return line ? JSON.parse(line.slice(6)) : null;
+  }).filter(Boolean);
+  return events.find((event) => event.type === "done")?.answer;
+}
+
 async function main() {
   const id = randomUUID();
   const user = await request("/auth/register", {
@@ -46,22 +59,26 @@ async function main() {
     catch (error) { blocked = /404/.test(error.message); }
     if (!blocked) throw new Error("another user can preview the document");
     console.log("Cross-user document access blocked.");
-    const coachResponse = await fetch(base + "/coach/chat", {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ message: "What did I build for my university project?" }),
-    });
-    if (!coachResponse.ok) throw new Error(`coach request returned ${coachResponse.status}`);
-    const events = (await coachResponse.text()).split(/\r?\n\r?\n/).map((block) => {
-      const line = block.split(/\r?\n/).find((part) => part.startsWith("data: "));
-      return line ? JSON.parse(line.slice(6)) : null;
-    }).filter(Boolean);
-    const done = events.find((event) => event.type === "done");
-    if (!done || !["rag", "rag-extractive"].includes(done.answer.source) || !done.answer.sources.length ||
-        !/Java API/i.test(done.answer.text)) {
-      throw new Error(`coach grounding failed (${done?.answer?.source || events.at(-1)?.type || "no event"})`);
+    const answer = await coachAnswer(token, "What did I build for my university project?");
+    if (!answer || !["rag", "rag-extractive"].includes(answer.source) || !answer.sources.length ||
+        !/Java API/i.test(answer.text)) {
+      throw new Error(`coach grounding failed (${answer?.source || "no answer"})`);
     }
-    console.log(`Coach RAG answer, SSE and citation passed (${done.answer.source}).`);
+    console.log(`Coach RAG answer, SSE and citation passed (${answer.source}).`);
+    const jdForm = new FormData();
+    jdForm.append("kind", "jd");
+    jdForm.append("file", new Blob(["A backend role requiring Java REST APIs and PostgreSQL."],
+      { type: "text/plain" }), "smoke-jd.txt");
+    const jd = await request("/documents", { method: "POST", body: jdForm }, token);
+    const comparison = await coachAnswer(token, "Compare my CV with the job description for this backend role");
+    if (!comparison || !["rag", "rag-extractive"].includes(comparison.source) ||
+        !comparison.sources.some((source) => /^CV:/i.test(source.label)) ||
+        !comparison.sources.some((source) => /^JD:/i.test(source.label))) {
+      throw new Error(`CV/JD comparison lacked both sources (${comparison?.source || "no answer"})`);
+    }
+    console.log("CV/JD comparison cited both uploaded documents.");
     await request(`/documents/${uploaded.document.id}`, { method: "DELETE" }, token);
+    await request(`/documents/${jd.document.id}`, { method: "DELETE" }, token);
     const afterDelete = await request("/documents", {}, token);
     if (afterDelete.documents.some((document) => document.id === uploaded.document.id)) {
       throw new Error("document remained after deletion");

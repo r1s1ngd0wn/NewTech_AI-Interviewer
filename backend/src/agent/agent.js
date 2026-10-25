@@ -7,9 +7,23 @@ const { createPlanService, memory } = require('../services/planService');
 const { createActionService, createMemoryActionService } = require('../services/actionService');
 const { httpError } = require('../utils/httpError');
 const { validateCitations } = require('../services/chatService');
+const { knowledgeIntent } = require('../services/ragService');
 const prompt = require('./coachPrompt');
 const memoryActions = createMemoryActionService(memory);
 const NO_DATA = "I couldn't find an answer in your documents or the question bank.";
+const NEED_DOCUMENTS = 'Upload both a CV and a job description so I can compare them.';
+const documentKind = (source, kind) => new RegExp(`^${kind}(?:\\s*:|$)`, 'i').test(source.label);
+const comparisonSources = sources => ['CV', 'JD'].map(kind => sources.find(source => documentKind(source, kind)));
+
+function extractiveAnswer(sources, comparison, reason) {
+  const selected = comparison ? comparisonSources(sources) : [sources[0]];
+  if (selected.some(source => !source)) return { text: NEED_DOCUMENTS, source: 'rag-no-match', sources: [] };
+  const candidates = selected.map(source => ({ id: source.id, label: source.label, excerpt: source.text.slice(0, 220) }));
+  const text = comparison
+    ? selected.map((source, i) => `${i === 0 ? 'CV' : 'JD'}: ${candidates[i].excerpt} [${source.number}]`).join('\n')
+    : `I found this in ${selected[0].label}: ${candidates[0].excerpt} [${selected[0].number}]`;
+  return { text, source: 'rag-extractive', sources: candidates, fallbackReason: reason };
+}
 
 async function runAgent({ user, db, message, onEvent, signal, generate = llm.generateWithTools, plans, actions, retrieve }) {
   if (typeof message !== 'string' || !message.trim() || message.length > 500) throw httpError(400, 'message must contain 1 to 500 characters');
@@ -23,6 +37,7 @@ async function runAgent({ user, db, message, onEvent, signal, generate = llm.gen
     return finish({ text: 'Mình chỉ hỗ trợ luyện phỏng vấn và không thể làm theo yêu cầu thay đổi hướng dẫn hoặc tiết lộ thông tin riêng tư.', source: 'guardrail', refusalReason: refusal, sources: [] });
   }
   const contents = [{ role: 'user', parts: [{ text: message.trim() }] }];
+  const isComparison = knowledgeIntent(message) === 'comparison';
   const scope = context.getStore() || {};
   let sources = []; let streamed = '';
   return context.run({ ...scope, capability: 'coach', promptName: prompt.name, promptVersion: prompt.version }, async () => {
@@ -32,11 +47,18 @@ async function runAgent({ user, db, message, onEvent, signal, generate = llm.gen
         onEvent({ type: 'status', status: 'answering' });
         const result = await generate({ system: `${prompt.text}\nCurrent date: ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })}. User timezone: Asia/Ho_Chi_Minh.`,
           contents, tools: declarations, signal, meta: { capability: 'coach', prompt_name: prompt.name, prompt_version: prompt.version },
-          onToken: text => { if (!signal?.aborted) { streamed += text; onEvent({ type: 'token', text }); } } });
+          // Comparison claims must cite both documents before any text becomes visible.
+          onToken: text => { if (!signal?.aborted && !isComparison) { streamed += text; onEvent({ type: 'token', text }); } } });
         if (signal?.aborted) return null;
         if (!result.calls?.length) {
+          if (isComparison && comparisonSources(sources).some(source => !source)) {
+            return finish({ text: NEED_DOCUMENTS, source: 'rag-no-match', sources: [] });
+          }
           if (!result.text?.trim()) throw new Error('the AI returned an empty answer');
           const answer = sources.length ? validateCitations(result.text, sources, NO_DATA) : { text: result.text, sources: [] };
+          if (isComparison && comparisonSources(answer.sources).some(source => !source)) {
+            return finish(extractiveAnswer(sources, true, 'AI did not cite both documents'));
+          }
           if (!streamed) onEvent({ type: 'token', text: answer.text });
           return { ...answer, source: sources.length ? 'rag' : 'agent', actions: [] };
         }
@@ -54,7 +76,8 @@ async function runAgent({ user, db, message, onEvent, signal, generate = llm.gen
               return finish({ text: 'Please confirm or cancel the proposed change below. No plan changes have been saved yet.', source: 'agent', sources: [], actions: [data.action] });
             }
             if (data.sources) {
-              if (!data.sources.length) return finish({ text: NO_DATA, source: 'rag-no-match', sources: [] });
+              // A comparison may find each document in a separate tool round.
+              if (!data.sources.length && !isComparison) return finish({ text: NO_DATA, source: 'rag-no-match', sources: [] });
               data.sources = data.sources.map(source => {
                 let existing = sources.find(s => s.id === source.id);
                 if (!existing) { existing = { ...source, number: sources.length + 1 }; sources.push(existing); }
@@ -76,6 +99,7 @@ async function runAgent({ user, db, message, onEvent, signal, generate = llm.gen
       if (signal?.aborted) return null;
       // Keep partial text visible; never append a second answer to a broken stream.
       if (streamed) throw httpError(503, 'AI connection interrupted. Your partial reply is preserved.');
+      if (sources.length) return finish(extractiveAnswer(sources, isComparison, 'AI stream unavailable'));
       return finish({ text: 'Tính năng AI tạm thời không khả dụng. Bạn vẫn có thể luyện phỏng vấn, xem lịch sử và quản lý kế hoạch thủ công.', source: 'fallback', fallbackReason: 'AI unavailable', sources: [] });
     }
   });

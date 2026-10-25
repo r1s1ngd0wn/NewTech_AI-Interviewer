@@ -41,7 +41,13 @@ router.post("/:id/answer", async (req, res, next) => {
 
 router.post("/:id/finish", async (req, res, next) => {
   try {
-    const feedback = await sessionService.finishSession(req.user.id, req.params.id);
+    // Scoring (which also indexes the interview for the chat) and the short wait for model reviews
+    // run side by side; the feedback is read again at the end so it includes reviews that landed
+    // while scoring was still running.
+    const waiting = sessionService.waitForCritiques(req.user.id, req.params.id).catch(() => {});
+    await sessionService.finishSession(req.user.id, req.params.id);
+    await waiting;
+    const feedback = await sessionService.getFeedback(req.user.id, req.params.id);
     res.json({ feedback });
   } catch (err) {
     next(err);
@@ -110,6 +116,7 @@ router.delete("/:id/documents/:documentId", async (req, res, next) => {
     }
     await documentService.deleteDocument(req.user.id, req.params.id, req.params.documentId);
     await sessionService.removeDocumentContext(req.user.id, req.params.id, req.params.documentId);
+    await sessionService.removeDocumentChatReferences(req.user.id, req.params.id, req.params.documentId);
     res.status(204).end();
   } catch (err) {
     next(err);

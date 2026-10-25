@@ -2,7 +2,7 @@ const { trackAiRequest } = require('./aiTelemetry');
 class GeminiError extends Error {
   constructor(message, status, code = 'provider_error') { super(message); this.name = 'LlmError'; this.upstreamStatus = status; this.code = code; }
 }
-async function requestJson({ system, contents, tools, signal, onToken, temperature = 0.2, maxOutputTokens = 1200, timeoutMs, model, responseSchema, validateOutput, meta = {} }) {
+async function requestAttempt({ system, contents, tools, signal, onToken, temperature = 0.2, maxOutputTokens = 1200, timeoutMs, model, responseSchema, validateOutput, thinkingBudget, meta = {} }) {
   model ||= process.env.GEMINI_MODEL || 'gemini-flash-latest';
   if (!process.env.GEMINI_API_KEY || process.env.LLM_PROVIDER === 'none' || process.env.LLM_PROVIDER === 'local') throw new GeminiError('the LLM is not configured or is disabled', undefined, 'not_configured');
   return trackAiRequest({ ...meta, model, signal, provider: 'gemini', operation: responseSchema || validateOutput ? 'json' : 'tools' }, async note => {
@@ -16,7 +16,9 @@ async function requestJson({ system, contents, tools, signal, onToken, temperatu
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY }, signal: controller.signal,
         body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents,
           ...(tools?.length ? { tools: [{ functionDeclarations: tools }] } : {}),
-          generationConfig: { temperature, maxOutputTokens, ...(responseSchema ? { responseMimeType: 'application/json', responseSchema } : {}) } }),
+          generationConfig: { temperature, maxOutputTokens,
+            ...(thinkingBudget !== undefined && thinkingBudget !== null ? { thinkingConfig: { thinkingBudget } } : {}),
+            ...(responseSchema ? { responseMimeType: 'application/json', responseSchema } : {}) } }),
       });
       let data;
       if (onToken && response.ok && response.body) {
@@ -38,7 +40,9 @@ async function requestJson({ system, contents, tools, signal, onToken, temperatu
       } else data = await response.json().catch(() => null);
       note({ usage: data?.usageMetadata, provider_status: response.status });
       if (data?.modelVersion) note({ model: data.modelVersion });
-      if (!response.ok) throw new GeminiError(`Gemini returned ${response.status}`, response.status);
+      if (!response.ok) throw new GeminiError(`Gemini returned ${response.status}`, response.status,
+        response.status === 400 && thinkingBudget !== undefined && thinkingBudget !== null && /think/i.test(data?.error?.message || '')
+          ? 'thinking_config' : 'provider_error');
       const content = data?.candidates?.[0]?.content;
       const calls = (content?.parts || []).filter(p => p.functionCall).map(p => p.functionCall);
       note({ tools: calls.map(c => c.name) });
@@ -56,5 +60,15 @@ async function requestJson({ system, contents, tools, signal, onToken, temperatu
       throw error;
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   });
+}
+async function requestJson(options) {
+  try { return await requestAttempt(options); }
+  catch (error) {
+    // A rejected configuration is a separate outbound attempt, not a JSON retry.
+    if (error.code === 'thinking_config' && !options.signal?.aborted) {
+      return requestAttempt({ ...options, thinkingBudget: null });
+    }
+    throw error;
+  }
 }
 module.exports = { requestJson, GeminiError };

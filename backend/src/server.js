@@ -27,7 +27,7 @@ if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PRO
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || (isProduction ? false : "*") }));
 app.use(securityHeaders);
-app.use(express.json({ limit: "50kb" }));
+app.use(express.json({ limit: "50kb", inflate: false }));
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 app.get('/api/health/ai', (req, res) => res.json(require('./services/aiHealth').status()));

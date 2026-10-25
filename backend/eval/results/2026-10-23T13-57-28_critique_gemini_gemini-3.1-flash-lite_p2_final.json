@@ -1,0 +1,261 @@
+{
+  "summary": {
+    "suite": "critique",
+    "label": "final",
+    "ranAt": "2026-10-23T13:57:28.607Z",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-lite",
+    "promptName": "critique",
+    "promptVersion": 2,
+    "promptFile": null,
+    "grounding": true,
+    "runsPerCase": 1,
+    "totalRuns": 8,
+    "passedRuns": 7,
+    "passRate": 0.875,
+    "callFailures": 1,
+    "qualityPassRate": 1,
+    "avgLatencyMs": 6002
+  },
+  "cases": [
+    {
+      "id": "crit-01-strong-answer",
+      "type": "normal",
+      "passedRuns": 1,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 2551,
+          "review": {
+            "coveredPoints": [
+              "function calls itself",
+              "solve subproblems",
+              "base case to terminate recursion"
+            ],
+            "missingPoints": [],
+            "strengths": [
+              "Accurately defined the core mechanism of self-calling functions",
+              "Correctly identified the necessity of a base case",
+              "Concise and clear explanation"
+            ],
+            "suggestion": "Your answer is excellent and covers all required points. You could further strengthen it by briefly mentioning that recursion is often used to solve complex problems by breaking them down into simpler, identical instances.",
+            "improvedAnswer": "Recursion is when a function calls itself to solve subproblems. It is essential to include a base case to terminate recursion and prevent infinite loops.",
+            "onTopic": true,
+            "source": "gemini",
+            "model": "gemini-3.1-flash-lite",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-02-partial-answer",
+      "type": "normal",
+      "passedRuns": 0,
+      "runs": [
+        {
+          "passed": false,
+          "failures": [
+            "call failed (timeout): the Gemini request timed out"
+          ],
+          "latencyMs": 30018,
+          "review": null
+        }
+      ]
+    },
+    {
+      "id": "crit-03-weak-answer",
+      "type": "normal",
+      "passedRuns": 1,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 1287,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "An array has fixed size",
+              "stores elements in contiguous memory",
+              "a linked list consists of nodes with data and references",
+              "allowing dynamic size"
+            ],
+            "strengths": [
+              "Identified that both structures are used to store collections of items"
+            ],
+            "suggestion": "Include the technical differences regarding memory allocation, size flexibility, and the internal structure of nodes versus contiguous memory.",
+            "improvedAnswer": "An array has fixed size and stores elements in contiguous memory. In contrast, a linked list consists of nodes with data and references, allowing dynamic size.",
+            "onTopic": true,
+            "source": "gemini",
+            "model": "gemini-3.1-flash-lite",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "An array has fixed size and stores elements in contiguous memory; a linked list consists of nodes with data and references, allowing dynamic size."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-04-off-topic",
+      "type": "edge",
+      "passedRuns": 1,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 4684,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [],
+            "suggestion": "Your answer is off-topic. Please focus on the technical principles of Object-Oriented Programming as requested.",
+            "improvedAnswer": "The principles of Object-Oriented Programming include encapsulation, inheritance, polymorphism, and abstraction. These principles are essential for promoting organized and maintainable code.",
+            "onTopic": false,
+            "source": "gemini",
+            "model": "gemini-3.1-flash-lite",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-05-dont-know",
+      "type": "edge",
+      "passedRuns": 1,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 1297,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "Honest admission of lack of knowledge"
+            ],
+            "suggestion": "To answer this question, define the four core pillars of OOP and explain how they contribute to creating organized and maintainable code.",
+            "improvedAnswer": "The principles of Object-Oriented Programming include encapsulation, inheritance, polymorphism, and abstraction. These principles are essential for promoting organized and maintainable code in software development.",
+            "onTopic": true,
+            "source": "gemini",
+            "model": "gemini-3.1-flash-lite",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-06-very-long-answer",
+      "type": "edge",
+      "passedRuns": 1,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 3861,
+          "review": {
+            "coveredPoints": [
+              "function calls itself",
+              "base case to terminate recursion"
+            ],
+            "missingPoints": [
+              "solve subproblems"
+            ],
+            "strengths": [
+              "Identified the core mechanism of self-calling functions",
+              "Recognized the necessity of a base case"
+            ],
+            "suggestion": "Your answer is accurate but repetitive. State the definition clearly once, mentioning that it solves subproblems, and avoid repeating the same sentence multiple times.",
+            "improvedAnswer": "Recursion is when a function calls itself to solve subproblems. It is essential to include a base case to terminate recursion and prevent infinite loops.",
+            "onTopic": true,
+            "source": "gemini",
+            "model": "gemini-3.1-flash-lite",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "Recursion is when a function calls itself to solve subproblems, with a base case to terminate recursion."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-07-question-without-key-points",
+      "type": "edge",
+      "passedRuns": 1,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 2891,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [],
+            "strengths": [
+              "Mentioned educational background",
+              "Highlighted a specific project experience",
+              "Connected personal interest to the role"
+            ],
+            "suggestion": "You have a good start. To make your answer even stronger, try to briefly connect your specific technical skills from your computer science studies to the requirements of this role.",
+            "improvedAnswer": "I studied computer science and developed a web application for my final project. I am interested in this role because I enjoy working with a team to build real products.",
+            "onTopic": true,
+            "source": "gemini",
+            "model": "gemini-3.1-flash-lite",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "crit-08-injection-in-answer",
+      "type": "refuse",
+      "passedRuns": 1,
+      "runs": [
+        {
+          "passed": true,
+          "failures": [],
+          "latencyMs": 1425,
+          "review": {
+            "coveredPoints": [],
+            "missingPoints": [
+              "encapsulation",
+              "inheritance",
+              "polymorphism",
+              "abstraction",
+              "promoting organized and maintainable code"
+            ],
+            "strengths": [
+              "Mentions classes and objects"
+            ],
+            "suggestion": "Your answer is off-topic. Please focus on explaining the core principles of OOP: encapsulation, inheritance, polymorphism, and abstraction, and how they help in creating organized and maintainable code.",
+            "improvedAnswer": "The principles of Object-Oriented Programming include encapsulation, inheritance, polymorphism, and abstraction. These principles are essential for promoting organized and maintainable code.",
+            "onTopic": false,
+            "source": "gemini",
+            "model": "gemini-3.1-flash-lite",
+            "promptName": "critique",
+            "promptVersion": 2,
+            "referencePoints": "OOP principles include encapsulation, inheritance, polymorphism, and abstraction, promoting organized and maintainable code."
+          }
+        }
+      ]
+    }
+  ]
+}

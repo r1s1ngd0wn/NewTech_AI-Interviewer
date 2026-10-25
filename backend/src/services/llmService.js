@@ -20,10 +20,12 @@ const GEMINI_TIMEOUT_MS = 15000;
 const LOCAL_TIMEOUT_MS = 45000;
 
 class LlmError extends Error {
-  constructor(message, { status } = {}) {
+  // code: "timeout" | "unreachable" | "empty" | "invalid_json" | "blocked" | "rate_limited" | "http_error"
+  constructor(message, { status, code } = {}) {
     super(message);
     this.name = "LlmError";
     this.upstreamStatus = status;
+    this.code = code || (status === 429 ? "rate_limited" : status ? "http_error" : "error");
   }
 }
 
@@ -95,8 +97,10 @@ function normalizeTurns(messages) {
   return turns;
 }
 
-async function postJson({ url, headers, body, timeoutMs, timeoutMessage, unreachableMessage, method = "POST" }) {
+async function postJson({ url, headers, body, timeoutMs, timeoutMessage, unreachableMessage, method = "POST", signal }) {
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
@@ -108,15 +112,18 @@ async function postJson({ url, headers, body, timeoutMs, timeoutMessage, unreach
     const data = await res.json().catch(() => null);
     return { res, data };
   } catch (err) {
-    throw new LlmError(err.name === "AbortError" ? timeoutMessage : unreachableMessage);
+    if (signal?.aborted) throw Object.assign(new Error('the LLM request was cancelled'), { name: 'AbortError' });
+    const timedOut = err.name === "AbortError";
+    throw new LlmError(timedOut ? timeoutMessage : unreachableMessage, { code: timedOut ? "timeout" : "unreachable" });
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
   }
 }
 
 // ---- Gemini ----------------------------------------------------------------------------
 
-async function generateGemini({ system, messages, temperature, maxOutputTokens, timeoutMs, meta }) {
+async function generateGemini({ system, messages, temperature, maxOutputTokens, timeoutMs, meta, responseSchema }) {
   const apiKey = env("GEMINI_API_KEY");
   const model = env("GEMINI_MODEL") || DEFAULT_GEMINI_MODEL;
   const budget = thinkingBudget();
@@ -133,6 +140,7 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
     generationConfig: {
       temperature,
       maxOutputTokens,
+      ...(responseSchema ? { responseMimeType: "application/json", responseSchema } : {}),
       ...(withThinking && budget !== null ? { thinkingConfig: { thinkingBudget: budget } } : {}),
     },
   });
@@ -166,7 +174,7 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
     throw new LlmError(`Gemini returned ${res.status}${safeDetail}`, { status: res.status });
   }
   if (data?.promptFeedback?.blockReason) {
-    throw new LlmError(`Gemini blocked the request (${data.promptFeedback.blockReason})`);
+    throw new LlmError(`Gemini blocked the request (${data.promptFeedback.blockReason})`, { code: "blocked" });
   }
 
   // Reasoning models can return their thinking as parts flagged `thought`; never show those.
@@ -175,7 +183,7 @@ async function generateGemini({ system, messages, temperature, maxOutputTokens, 
     .map((p) => p.text || "")
     .join("")
     .trim();
-  if (!text) throw new LlmError("Gemini returned an empty answer");
+  if (!text) throw new LlmError("Gemini returned an empty answer", { code: "empty" });
   return text;
 }
 
@@ -211,13 +219,13 @@ function stripReasoning(text) {
   return text.replace(/<(think|thought|thinking)>[\s\S]*?<\/\1>/gi, "").trim();
 }
 
-async function generateLocal({ system, messages, temperature, maxOutputTokens, timeoutMs, meta }) {
+async function generateLocal({ system, messages, temperature, maxOutputTokens, timeoutMs, meta, operation = "chat", validateOutput, signal }) {
   const cfg = localConfig();
   const turns = normalizeTurns(messages);
   if (!turns.length) throw new LlmError("there was nothing to send");
   const model = cfg.model || (await detectLocalModel(cfg));
 
-  return trackAiRequest({ ...meta, model, provider: 'local', operation: 'chat' }, async note => {
+  return trackAiRequest({ ...meta, model, provider: 'local', operation, signal }, async note => {
   const { res, data } = await postJson({
     url: `${cfg.baseUrl}/chat/completions`,
     headers: localHeaders(cfg),
@@ -229,6 +237,7 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
       stream: false,
     },
     timeoutMs,
+    signal,
     timeoutMessage: "the local model took too long to answer",
     unreachableMessage: localUnreachable(cfg.baseUrl),
   });
@@ -240,18 +249,20 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
   }
   note({ usage: data?.usage, provider_status: res.status });
   const text = stripReasoning(String(data?.choices?.[0]?.message?.content || ""));
-  if (!text) throw new LlmError("the local model returned an empty answer");
-  return text;
+  if (!text) throw new LlmError("the local model returned an empty answer", { code: "empty" });
+  if (!validateOutput) return text;
+  try { return validateOutput(text); }
+  catch { throw new LlmError("AI output failed JSON/schema validation", { code: "invalid_json" }); }
   });
 }
 
 // ---- public ----------------------------------------------------------------------------
 
-async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs, meta }) {
+async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs, promptVersion, meta }) {
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
   const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(),
-    meta: { ...meta, legacyInvocation: {} } };
+    meta: invocationMeta(meta, promptVersion) };
   const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
   // The app never shows em/en dashes; models like to write them.
   return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
@@ -314,8 +325,8 @@ function reasoningFilter() {
   };
 }
 
-async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, meta }) {
-  meta = { ...meta, legacyInvocation: {} };
+async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, promptVersion, meta }) {
+  meta = invocationMeta(meta, promptVersion);
   const active = provider();
   if (!active) throw new LlmError("the LLM is not configured");
   const controller = new AbortController();
@@ -395,20 +406,53 @@ async function* generateStream({ system, messages, temperature = 0.2, maxOutputT
   }
 }
 
+// Models may wrap JSON in fences or add a short introductory sentence.
+function parseJsonText(text) {
+  const unfenced = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "");
+  try { return JSON.parse(unfenced); }
+  catch {
+    const start = unfenced.indexOf("{");
+    const end = unfenced.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      try { return JSON.parse(unfenced.slice(start, end + 1)); } catch { /* report below */ }
+    }
+    throw new LlmError("the model did not return valid JSON", { code: "invalid_json" });
+  }
+}
+
+function invocationMeta(meta, promptVersion) {
+  return { ...meta, ...(promptVersion !== undefined ? { prompt_version: meta?.prompt_version ?? promptVersion } : {}), legacyInvocation: {} };
+}
+
 const generateWithTools = options => require('./geminiClient').requestJson(options);
-async function generateJson({ system, messages = [], contents, responseSchema, validate, schema, fallback, signal, model, meta = {} }) {
-  const turns = contents || normalizeTurns(messages).map(t => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] }));
+async function generateJson({ system, messages = [], contents, responseSchema, validate, schema, fallback,
+  signal, model, meta = {}, promptVersion, temperature = 0.2, maxOutputTokens = 1024, timeoutMs, retry = true }) {
+  const active = provider();
+  if (!active) throw new LlmError("the LLM is not configured", { code: "not_configured" });
+  const turns = contents ? [...contents] : normalizeTurns(messages).map(t => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] }));
+  // Critique callers own retries; agent convenience callers can delegate one corrective retry.
+  const maxAttempts = retry && (validate || schema || fallback !== undefined) ? 2 : 1;
+  const requestMeta = { ...invocationMeta(meta, promptVersion), capability: meta.capability || 'critique' };
+  const validateOutput = text => {
+    const json = parseJsonText(text);
+    return validate ? validate(json) : schema ? schema.parse(json) : json;
+  };
   let failure;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
+      if (active === 'local') {
+        return await generateLocal({ system, messages: turns.map(t => ({ role: t.role === 'model' ? 'assistant' : 'user', text: (t.parts || []).map(p => p.text || '').join('') })),
+          temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(), meta: requestMeta, operation: 'json', validateOutput, signal });
+      }
       const result = await require('./geminiClient').requestJson({ system, contents: turns, responseSchema, signal, model,
-        meta: { ...meta, capability: meta.capability || 'critique' }, validateOutput: text => {
-          const json = JSON.parse(text); return validate ? validate(json) : schema ? schema.parse(json) : json;
-        } });
+        temperature, maxOutputTokens, timeoutMs, thinkingBudget: thinkingBudget(), meta: requestMeta, validateOutput });
       return result.value;
     } catch (error) {
-      failure = error;
-      if (signal?.aborted || error.code !== 'invalid_json') break;
+      // Preserve the public structured-critique error vocabulary.
+      failure = error.code === 'empty_response' ? new LlmError('the model returned an empty answer', { code: 'empty' })
+        : error.upstreamStatus ? new LlmError(error.message, { status: error.upstreamStatus, code: error.code === 'provider_error' ? undefined : error.code })
+        : !error.code && error.name !== 'AbortError' ? new LlmError('could not reach the model API', { code: 'unreachable' }) : error;
+      if (signal?.aborted || failure.code !== 'invalid_json') break;
       turns.push({ role: 'model', parts: [{ text: 'Invalid JSON output.' }] }, { role: 'user', parts: [{ text: 'The output failed JSON/schema validation. Return only valid JSON matching the requested schema.' }] });
     }
   }

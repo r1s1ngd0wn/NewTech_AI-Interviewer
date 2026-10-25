@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../lib/api.js";
 import { AlertIcon, SendIcon, StopIcon } from "../components/icons.jsx";
 import ConfirmActionCard from '../components/ConfirmActionCard.jsx';
+import { plainText } from "../lib/plainText.js";
 
 export default function CoachPage() {
   const [messages, setMessages] = useState([]);
@@ -19,7 +20,7 @@ export default function CoachPage() {
   const logRef = useRef(null);
 
   useEffect(() => {
-    document.title = "Coach - InterviewAI";
+    document.title = "Preparation coach - InterviewAI";
     return () => controllerRef.current?.abort();
   }, []);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [messages, pending]);
@@ -67,13 +68,13 @@ export default function CoachPage() {
   }
 
   return <div className="page container coach-page">
-    <span className="eyebrow">Interview practice</span>
-    <h1>Coach</h1>
+    <span className="eyebrow">Before your interview</span>
+    <h1>Preparation coach</h1>
     <div className="coach-toolbar"><Link to="/documents">Your documents</Link></div>
     {tools.length > 0 && <div className="chat-msg-note" aria-live="polite">{tools.map((tool, i) => <span key={i} className="tool-label">{tool.name}: {tool.status} </span>)}</div>}
     <div className="coach-log" ref={logRef} role="log" aria-live="polite" aria-label="Coach conversation">
       {messages.map((message, index) => <div key={index} className={`chat-msg chat-msg-${message.role}`}>
-        {message.text}
+        {plainText(message.text)}
         {message.incomplete && <span className="chat-msg-note">Incomplete reply</span>}
         {message.fallbackReason && <span className="chat-msg-note">Source excerpt shown because {message.fallbackReason}.</span>}
         {message.sources?.length > 0 && <details className="chat-msg-note"><summary>Sources ({message.sources.length})</summary>
@@ -81,7 +82,7 @@ export default function CoachPage() {
         </details>}
       </div>)}
       {busy && <div className="chat-msg chat-msg-assistant chat-msg-pending" role="status">
-        {pending || (stage === 'tool' ? 'Calling tool...' : stage === "searching" ? "Searching sources..." : "Writing answer...")}
+        {plainText(pending) || (stage === 'tool' ? 'Calling tool...' : stage === "searching" ? "Searching sources..." : "Writing answer...")}
         {sources.length > 0 && <span className="chat-msg-note">{sources.length} sources found</span>}
       </div>}
     </div>

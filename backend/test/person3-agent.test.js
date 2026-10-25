@@ -87,3 +87,88 @@ test('repeated knowledge searches keep source numbers stable across tool rounds'
   assert.equal(result.sources[0].id, 'CV');
   assert.equal(result.sources[1].id, 'JD');
 });
+
+test('comparison needs both CV and JD evidence even if the model answers without tools', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  for (const matches of [[], [{ id: 'cv', label: 'CV: resume', text: 'Built APIs' }]]) {
+    const events = []; let round = 0;
+    const result = await runAgent({ user: { id: 'alice' }, message: 'Compare my CV and JD',
+      onEvent: e => events.push(e), retrieve: async () => matches,
+      generate: async ({ onToken }) => {
+        if (matches.length && ++round === 1) return call('search_knowledge', { query: 'CV' });
+        onToken('Unsupported comparison [1]');
+        return { text: 'Unsupported comparison [1]', calls: [] };
+      } });
+    assert.equal(result.source, 'rag-no-match');
+    assert.match(result.text, /Upload both a CV and a job description/);
+    assert.deepEqual(events.filter(e => e.type === 'token').map(e => e.text), [result.text]);
+  }
+});
+
+test('comparison citing only one document returns both excerpts with stable citations without streaming claims', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  const events = []; let round = 0;
+  const result = await runAgent({ user: { id: 'alice' }, message: 'Compare my CV and JD',
+    onEvent: e => events.push(e), retrieve: async () => [
+      { id: 'bank', label: 'Question bank', text: 'General advice' },
+      { id: 'jd', label: 'JD: role', text: 'Requires SQL' },
+      { id: 'cv', label: 'CV: resume', text: 'Built APIs' },
+    ], generate: async ({ onToken }) => {
+      if (++round === 1) return call('search_knowledge', { query: 'Compare CV and JD' });
+      onToken('You match all requirements [3]');
+      return { text: 'You match all requirements [3]', calls: [] };
+    } });
+  assert.equal(result.source, 'rag-extractive');
+  assert.equal(result.text, 'CV: Built APIs [3]\nJD: Requires SQL [2]');
+  assert.deepEqual(result.sources.map(s => s.id), ['cv', 'jd']);
+  assert.deepEqual(events.filter(e => e.type === 'token').map(e => e.text), [result.text]);
+});
+
+test('comparison with citations to both kinds emits the validated reply once', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  const events = []; let round = 0;
+  const result = await runAgent({ user: { id: 'alice' }, message: 'Compare my CV and JD',
+    onEvent: e => events.push(e), retrieve: async () => [
+      { id: 'cv', label: 'CV', text: 'Built APIs' }, { id: 'jd', label: 'JD', text: 'Requires SQL' },
+    ], generate: async ({ onToken }) => {
+      if (++round === 1) return call('search_knowledge', { query: 'CV and JD' });
+      onToken('CV [1] and JD [2] [99]');
+      return { text: 'CV [1] and JD [2] [99]', calls: [] };
+    } });
+  assert.equal(result.text, 'CV [1] and JD [2]');
+  assert.equal(result.sources.length, 2);
+  assert.deepEqual(events.filter(e => e.type === 'token').map(e => e.text), [result.text]);
+});
+
+test('model failure after retrieval returns cited excerpts when no text was visible', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  for (const comparison of [false, true]) {
+    const events = []; let round = 0;
+    const result = await runAgent({ user: { id: 'alice' },
+      message: comparison ? 'Compare my CV and JD' : 'What does my CV say?',
+      onEvent: e => events.push(e), retrieve: async () => [
+        { id: 'cv', label: 'CV', text: 'Built APIs' },
+        ...(comparison ? [{ id: 'jd', label: 'JD', text: 'Requires SQL' }] : []),
+      ], generate: async ({ onToken }) => {
+        if (++round === 1) return call('search_knowledge', { query: 'CV and JD' });
+        if (comparison) onToken('Unvalidated claim');
+        throw new Error('timeout');
+      } });
+    assert.equal(result.source, 'rag-extractive');
+    assert.match(result.text, /Built APIs.*\[1\]/);
+    assert.equal(result.sources.length, comparison ? 2 : 1);
+    assert.deepEqual(events.filter(e => e.type === 'token').map(e => e.text), [result.text]);
+  }
+});
+
+test('model interruption preserves an already visible non-comparison partial reply', async () => {
+  const { runAgent } = require('../src/agent/agent');
+  const events = []; let round = 0;
+  await assert.rejects(runAgent({ user: { id: 'alice' }, message: 'What does my CV say?',
+    onEvent: e => events.push(e), retrieve: async () => [{ id: 'cv', label: 'CV', text: 'Built APIs' }],
+    generate: async ({ onToken }) => {
+      if (++round === 1) return call('search_knowledge', { query: 'CV' });
+      onToken('Partial reply'); throw new Error('timeout');
+    } }), { status: 503 });
+  assert.deepEqual(events.filter(e => e.type === 'token').map(e => e.text), ['Partial reply']);
+});
