@@ -259,19 +259,56 @@ Without a key nothing changes and the browser recogniser is used. Details:
 - A Groq failure or quota error shows a short message and the user can type the answer.
 - Use `GROQ_SPEECH_LANGUAGE=vi` (or another code) to transcribe another language.
 
-## Running with Docker (for later)
+## Run with Docker Compose
 
-```bash
-docker compose up --build
+Docker Compose starts both the frontend and backend. Supabase remains an external service; the
+database and user data are not stored in the containers.
+
+### Prerequisites
+
+- Docker Desktop (or another Docker Engine with Compose) is running.
+- A Supabase project is configured with the database schema and migrations described above.
+- `backend/.env` contains the settings below. On first setup, copy the example file:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
 ```
 
-Set `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and optional model variables in
-the environment or a repo-root `.env` before `docker compose up --build`. Keep that file out of
-Git. Frontend is at http://localhost:5173; backend at http://localhost:4000. Data is in Supabase,
-not a Docker volume. For local LLMs in Docker, use a host address reachable from the container.
-Admin scenario metadata and availability are stored in the `scenario_data` Docker volume; keep
-that volume attached when recreating the backend container. A multi-replica deployment needs a
-shared persistent store before scenario edits are enabled across replicas.
+Set these values in `backend/.env`:
+
+- `DATABASE_URL`: Supabase Postgres connection string.
+- `SUPABASE_URL`: Supabase project URL.
+- `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`: public key used for sign-in. Compose accepts either name.
+- `SUPABASE_SECRET_KEY`: server-side key for private file storage and other privileged backend operations.
+- `GEMINI_API_KEY` and `EMBEDDING_PROVIDER=gemini` if you want Gemini generation and embeddings. These are optional for starting the containers, but AI features that need Gemini will not work without a valid key.
+
+Keep `backend/.env` local; never commit its values. Do not use a Supabase secret/service-role key as a frontend key.
+
+### Start the application
+
+From the repository root, build and start both services:
+
+```powershell
+docker compose --env-file backend/.env up --build
+```
+
+Open the frontend at <http://localhost:5173>. The backend API is available at <http://localhost:4000>.
+The Compose health check should report the backend as `healthy`; check both containers with:
+
+```powershell
+docker compose --env-file backend/.env ps
+```
+
+To run in the background, add `-d` to `up`. Follow logs with
+`docker compose --env-file backend/.env logs -f`; stop the containers with
+`docker compose --env-file backend/.env down`. If startup reports that port 4000 or 5173 is
+already in use, stop the local development server using that port or change the host port mapping
+in `docker-compose.yml`.
+
+The backend stores scenario overrides in the named `scenario_data` Docker volume. Keep that volume
+when recreating containers to preserve those changes. For a local LLM, set `LOCAL_LLM_URL` to a
+host address reachable from inside Docker; `localhost` inside the backend container refers to the
+container itself, not the host computer.
 
 ## What's implemented vs. mocked
 

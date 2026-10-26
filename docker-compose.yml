@@ -14,7 +14,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL to the Supabase Postgres connection string}
       - SCENARIO_DATA_FILE=/app/data/scenario-overrides.json
       - SUPABASE_URL=${SUPABASE_URL:-}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-${SUPABASE_PUBLISHABLE_KEY:-}}
       - SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY:-}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
       - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-}
@@ -32,7 +32,7 @@ services:
       context: ./frontend
       args:
         VITE_SUPABASE_URL: ${SUPABASE_URL:-}
-        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-${SUPABASE_PUBLISHABLE_KEY:-}}
     ports:
       - "5173:80"
     depends_on:
