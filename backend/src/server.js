@@ -46,6 +46,7 @@ app.post("/api/sessions/:id/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
 app.post("/api/sessions/:id/chat/stream", rateLimit({ windowMs: 60 * 1000, max: 20 }));
 app.post("/api/documents", rateLimit({ windowMs: 60 * 1000, max: 10 }));
 app.post("/api/coach/chat", rateLimit({ windowMs: 60 * 1000, max: 20 }));
+app.post("/api/speech/transcribe", rateLimit({ windowMs: 60 * 60 * 1000, max: 120, message: "speech transcription limit reached, try again later" }));
 app.use('/api/coach/actions', rateLimit({ windowMs: 60 * 1000, max: 30 }));
 
 app.use("/api/auth", authRoutes);
@@ -54,6 +55,7 @@ app.use("/api/scenarios", scenarioRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/coach", coachRoutes);
+app.use("/api/speech", require("./routes/speech"));
 app.use("/api/progress", progressRoutes);
 
 app.use((req, res) => {

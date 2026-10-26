@@ -26,7 +26,8 @@ a post-interview chat, and progress tracking.
 - **Frontend** - React + Vite, React Router, plain CSS (no build-time CSS framework). Uses the
   browser's Web Speech API (`SpeechRecognition` / `speechSynthesis`) for STT/TTS, with a text
   fallback if the browser doesn't support it (e.g. Firefox). The transcript is editable, so a
-  misheard word can be corrected before submitting.
+  misheard word can be corrected before submitting. With a `GROQ_API_KEY` the answer is recorded and
+  transcribed by Groq's Whisper model instead (see "Optional: Groq Whisper speech").
 
 ## Test account
 
@@ -81,7 +82,7 @@ vectors are re-embedded under a new model key.
 
 To try document-grounded questions, open **Documents** and upload a CV or job
 description (PDF, DOCX, TXT or Markdown, up to 5 MB, 100,000 extracted characters and
-40 searchable chunks). Each account can keep 10 library documents and each interview
+80 searchable chunks of up to about 1,200 characters, split by section). Each account can keep 10 library documents and each interview
 can hold 3 session documents. Documents in the library are
 available to your future interviews. You can also upload a document only for one
 interview on its preparation screen. Then select **Start interview**. A matching excerpt
@@ -156,6 +157,7 @@ src/prompts/archive/critique.v1.md --no-grounding` (reproduce the behaviour befo
 | `LLM_CRITIQUE` | `off` stops the model writing the per-answer review on the feedback page (a basic review is shown instead) |
 | `LLM_PROVIDER` | Providers in the order they are tried: `local,gemini` (Gemma first, Gemini if it fails), `local`, `gemini`, or `none` for scripted replies. Unset means Gemini if a key exists |
 | `LOCAL_LLM_URL` / `LOCAL_LLM_MODEL` / `LOCAL_LLM_API_KEY` | Local server base URL (default LM Studio `http://localhost:1234/v1`), model id, optional key |
+| `GROQ_API_KEY` / `GROQ_SPEECH_LANGUAGE` | Optional. Turns on Groq Whisper transcription of spoken answers (language code, default `en`) |
 | `LLM_REACTION_TIMEOUT_MS` | How long an interview waits for a model-written reaction (8000 Gemini, 20000 local) |
 
 AI request metadata (user ID, provider, model, operation, prompt version, duration, status)
@@ -235,6 +237,27 @@ endpoint works (Ollama is `http://localhost:11434/v1`). Local calls wait up to 4
 interviewer reactions) because a model may still be loading. Tested with Gemma 4 E4B (IQ4_NL) in LM
 Studio: replies took 0.5 to 6 seconds on the chat, and the grounding checks behaved the same as
 with Gemini. If the server is stopped, the app shows why and uses the scripted replies.
+
+## Optional: Groq Whisper speech
+
+The browser's own speech recognition (Chrome and Edge send the audio to Google and Microsoft) often
+mishears accented English. Set a key in `backend/.env` and spoken answers are transcribed by Groq's
+hosted `whisper-large-v3-turbo` instead:
+
+```
+GROQ_API_KEY=your-key-from-console.groq.com
+```
+
+Restart the backend. On the interview page the microphone then records the answer, shows
+"Transcribing..." and puts the text into the answer box, where it can be edited before submitting.
+Without a key nothing changes and the browser recogniser is used. Details:
+
+- Only speech to text uses Groq; the interviewer's voice is still the browser's.
+- The recording (up to 10 MB, about 10 minutes) goes browser -> backend -> Groq and is not stored.
+  Requests need a logged-in user, are limited to 120 an hour per address, and appear in the AI request
+  log as capability `speech` (cost unknown: Groq bills per audio hour, not per token).
+- A Groq failure or quota error shows a short message and the user can type the answer.
+- Use `GROQ_SPEECH_LANGUAGE=vi` (or another code) to transcribe another language.
 
 ## Running with Docker (for later)
 

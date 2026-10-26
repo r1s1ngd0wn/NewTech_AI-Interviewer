@@ -2,7 +2,9 @@
 
 Uploaded CVs and job descriptions are stored in a private Supabase Storage bucket. Extracted text and 768-dimensional embeddings are stored in Supabase Postgres. Session answers, feedback and chat are also persisted there. The browser receives only documents belonging to the authenticated account, and retrieval queries filter private chunks by user ID. No Supabase secret or Gemini API key belongs in frontend code.
 
-Uploads are limited to 5 MB, 100,000 extracted characters and 40 searchable chunks. A user may keep up to 10 reusable documents, with up to 3 additional documents per interview. DOCX archives are checked for excessive expanded size before text extraction.
+Uploads are limited to 5 MB, 100,000 extracted characters and 80 searchable chunks. A user may keep up to 10 reusable documents, with up to 3 additional documents per interview. DOCX archives are checked for excessive expanded size before text extraction.
+
+When `GROQ_API_KEY` is set, a spoken answer is recorded in the browser and the audio is sent through the backend to Groq for transcription; it is not stored by the app, and the request log records only the model, time and status. Without the key the browser's own speech recognition is used, which sends audio to the browser vendor.
 
 When Gemini embeddings are enabled, extracted text chunks and search queries are sent to Google's embedding API. When Gemini chat is enabled, relevant retrieved excerpts and the user's question may be sent to the Gemini generation API. With a local embedding/chat provider those model calls remain local, but Supabase still stores application data. Users should avoid uploading sensitive third-party information without consent.
 

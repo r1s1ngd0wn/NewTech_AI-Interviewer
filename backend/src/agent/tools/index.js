@@ -30,7 +30,15 @@ async function executeTool(name, args, ctx) {
   if (writeTools.has(name)) return { action: await ctx.actions.propose(userId, name, args) };
   if (name === 'search_knowledge') {
     if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 500) throw httpError(400, 'query must contain 1 to 500 characters');
-    const matches = await (ctx.retrieve || rag.retrieveKnowledge)(userId, args.query, 5);
+    let matches = await (ctx.retrieve || rag.retrieveKnowledge)(userId, args.query, 5);
+    // A question about the user's own CV or JD also looks inside that document with a lower floor.
+    const kind = { CV: 'cv', JD: 'jd' }[ctx.requiredSourceKind];
+    const ownDocuments = ctx.retrieveDocument || (ctx.retrieve ? null : rag.retrieveDocumentChunks);
+    if (kind && ownDocuments && !matches.some(m => String(m.label || m.source?.label || '').toLowerCase().startsWith(kind))) {
+      const own = await ownDocuments(userId, args.query, kind, 3);
+      const seen = new Set(matches.map(m => m.id));
+      matches = [...own.filter(m => !seen.has(m.id)), ...matches].slice(0, 5);
+    }
     return { sources: matches.map((m, index) => ({ id: m.id, label: m.label || m.source?.label || 'Source', sourceType: m.sourceType || null,
       text: guard.sanitizeSourceText(m.text || m.content).slice(0, 2500), number: index + 1 })) };
   }

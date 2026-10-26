@@ -49,7 +49,7 @@ function createRequestLog(meta, options) {
       const cancelled = error?.name === 'AbortError' && meta.signal?.aborted;
       const status = error ? error.code === 'invalid_json' ? 'invalid_json' : error.code === 'provider_blocked' ? 'refused'
         : (aborted && !cancelled ? 'timeout' : 'error') : details.status || 'ok';
-      if (!cancelled && meta.provider !== 'local') {
+      if (!cancelled && meta.provider !== 'local' && meta.capability !== 'speech') {
         if (status === 'ok' || status === 'refused') health.recordSuccess();
         else health.recordFailure(error || { upstreamStatus: details.provider_status });
       }
