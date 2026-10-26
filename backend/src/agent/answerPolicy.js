@@ -8,10 +8,12 @@ function classifyCoachRequest(message) {
 
   // Document intent takes precedence over incidental references to app data.
   if (knowledgeIntent(text) === 'comparison') return { mode: 'comparison', tools: ['search_knowledge'] };
-  if (has(lower, /\b(cv|resume|curriculum vitae|job description|\bjd\b|uploaded document|my document|question bank|sample question|reference answer|my experience|my skills)\b|hồ sơ|cv của tôi|tài liệu|mô tả công việc|câu hỏi mẫu|đáp án mẫu|kinh nghiệm của tôi|kỹ năng của tôi/i)) {
+  if (has(lower, /\b(cv|resume|curriculum vitae|job description|\bjd\b|uploaded document|my document|question bank|sample question|reference answer|my experience|my skills|my (education|degree|university|projects?|internships?|work history|background|certificates?|achievements?|languages?)|(work|recent|previous|latest) experience)\b|where did i (work|study|intern)|what (did|have) i (build|built|study|studied|work on)|\b(roles?|positions?|jobs?)\b.{0,40}\b(should i|suit me|am i (suited|qualified))|hồ sơ|cv của tôi|tài liệu|mô tả công việc|câu hỏi mẫu|đáp án mẫu|kinh nghiệm của tôi|kỹ năng của tôi/i)) {
+    // Questions about the user's own background ("my education", "where did I intern") are answered from the CV.
     const requiredSourceKind = has(lower, /\b(cv|resume|curriculum vitae)\b|cv của tôi|hồ sơ/i) ? 'CV'
       : has(lower, /\b(job description|\bjd\b)\b|mô tả công việc/i) ? 'JD'
-        : has(lower, /\b(question bank|sample question|reference answer)\b|câu hỏi mẫu|đáp án mẫu/i) ? 'QUESTION' : null;
+        : has(lower, /\b(question bank|sample question|reference answer)\b|câu hỏi mẫu|đáp án mẫu/i) ? 'QUESTION'
+          : has(lower, /\bmy (education|degree|university|projects?|internships?|work history|background|certificates?|achievements?|languages?|experience|skills)\b|(work|recent|previous|latest) experience|where did i (work|study|intern)|what (did|have) i (build|built|study|studied|work on)|\b(roles?|positions?|jobs?)\b.{0,40}\b(should i|suit me|am i (suited|qualified))|kinh nghiệm của tôi|kỹ năng của tôi/i) ? 'CV' : null;
     return { mode: 'knowledge', tools: ['search_knowledge'], requiredSourceKind };
   }
   if (has(lower, /^(hi|hello|hey|thanks|thank you|help|xin chào|chào|cảm ơn)[.!? ]*$/i)) {

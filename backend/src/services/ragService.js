@@ -184,6 +184,19 @@ async function retrieveKnowledge(userId, message, limit = 5, options = {}) {
   return selectKnowledge(userId, message, vector, threshold, count, options);
 }
 
+// A question that names the user's own CV or job description is searched inside that document with
+// a low floor instead of the normal match threshold: broad questions ("what is my CV about") score
+// just under it, and the answer is still cited and checked like any other.
+const DOCUMENT_QUESTION_FLOOR = 0.40;
+
+async function retrieveDocumentChunks(userId, message, kind, limit = 3, options = {}) {
+  const model = embeddingService.config();
+  if (!userId || !model || !["cv", "jd"].includes(kind) || typeof message !== "string" || !message.trim()) return [];
+  const embed = options.embed || embeddingService.embed;
+  const vector = await embed(message, "RETRIEVAL_QUERY");
+  return searchKnowledge(userId, vector, DOCUMENT_QUESTION_FLOOR, Math.max(1, Math.min(5, limit)), { ...options, documentKind: kind });
+}
+
 async function selectKnowledge(userId, message, vector, threshold, count, options = {}) {
   const intent = knowledgeIntent(message);
   if (options.documentOnly) return searchDocuments(userId, message, vector, threshold, count, options);
@@ -215,7 +228,7 @@ function matchThreshold(model = embeddingService.config()) {
 function knowledgeIntent(message) {
   if (/\b(compare|match|fit|align|gap|suitable)\b|so sánh|phù hợp/i.test(message) &&
       /\b(cv|resume|curriculum vitae|experience|skills?)\b|kinh nghiệm|kỹ năng/i.test(message) &&
-      /\b(jd|job|job description|job posting|role|position|requirements?)\b|công việc|vị trí|yêu cầu/i.test(message)) {
+      /\b(jd|job description|job posting|job requirements?|requirements?)\b|\b(the|this|that|target|advertised) (job|role|position)\b|công việc|vị trí|yêu cầu/i.test(message)) {
     return "comparison";
   }
   if (/\b(question bank|reference answer|model answer|sample question)\b|đáp án mẫu|câu hỏi mẫu/i.test(message)) {
@@ -340,4 +353,4 @@ async function deleteInterviewIndex(sessionId, query = (sql, values) => getPool(
 module.exports = { chunkText, sessionSources, chunksFor, indexChunks, indexKnowledgeChunks,
   indexQuestionBank, indexSession, searchKnowledge, retrieveKnowledge, retrieve, retrieveDocumentContext,
   deleteSessionIndex, deleteInterviewIndex, matchThreshold, knowledgeIntent, hasLexicalEvidence,
-  normalizeQuestionReferences, referencedQuestionNumbers, GEMINI_RESCUE_FLOOR };
+  normalizeQuestionReferences, referencedQuestionNumbers, retrieveDocumentChunks, GEMINI_RESCUE_FLOOR, DOCUMENT_QUESTION_FLOOR };

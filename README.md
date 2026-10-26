@@ -81,7 +81,7 @@ vectors are re-embedded under a new model key.
 
 To try document-grounded questions, open **Documents** and upload a CV or job
 description (PDF, DOCX, TXT or Markdown, up to 5 MB, 100,000 extracted characters and
-40 searchable chunks). Each account can keep 10 library documents and each interview
+80 searchable chunks of up to about 1,200 characters, split by section). Each account can keep 10 library documents and each interview
 can hold 3 session documents. Documents in the library are
 available to your future interviews. You can also upload a document only for one
 interview on its preparation screen. Then select **Start interview**. A matching excerpt

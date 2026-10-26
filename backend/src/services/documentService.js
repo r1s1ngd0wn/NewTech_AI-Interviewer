@@ -5,6 +5,8 @@ const JSZip = require("jszip");
 const { newId } = require("../utils/id");
 const { getPool, withTransaction } = require("../db/postgres");
 const ragService = require("./ragService");
+const { pageToText } = require("./pdfText");
+const { sectionChunks } = require("./documentChunks");
 const embeddingService = require("./embeddingService");
 const { httpError } = require("./authService");
 const { sanitizeSourceText } = require("../guards/inputGuard");
@@ -13,7 +15,8 @@ const BUCKET = "interviewai-private";
 const MAX_PAGES = 20;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_TEXT_CHARS = 100000;
-const MAX_CHUNKS = 40;
+// Chunks follow the document's sections and are at most about 1,200 characters (see documentChunks.js).
+const MAX_CHUNKS = 80;
 const MAX_USER_DOCUMENTS = 10;
 const MAX_SESSION_DOCUMENTS = 3;
 const MAX_DOCX_EXPANDED_BYTES = 20 * 1024 * 1024;
@@ -54,7 +57,7 @@ function searchableChunks(text) {
   if (text.length > MAX_TEXT_CHARS) {
     throw httpError(400, `documents are limited to ${MAX_TEXT_CHARS} extracted characters`);
   }
-  const chunks = ragService.chunkText(sanitizeSourceText(text), 2000, 200);
+  const chunks = sectionChunks(sanitizeSourceText(text));
   if (chunks.length > MAX_CHUNKS) {
     throw httpError(400, `documents are limited to ${MAX_CHUNKS} searchable chunks`);
   }
@@ -98,11 +101,12 @@ async function extractText(file, contentType) {
     const pdf = await task.promise;
     if (pdf.numPages > MAX_PAGES) throw httpError(400, `PDFs are limited to ${MAX_PAGES} pages`);
     const pages = [];
-    for (let page = 1; page <= pdf.numPages; page++) {
-      const content = await (await pdf.getPage(page)).getTextContent();
-      pages.push(content.items.map((item) => item.str || "").join(" "));
+    for (let number = 1; number <= pdf.numPages; number++) {
+      const page = await pdf.getPage(number);
+      const content = await page.getTextContent();
+      pages.push(pageToText(content.items, page.view[2] - page.view[0]));
     }
-    return pages.join("\n").trim();
+    return pages.join("\n\n").trim();
   } finally {
     await task.destroy();
   }

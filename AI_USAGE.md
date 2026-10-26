@@ -117,6 +117,14 @@ prompt files, history, admin usage dashboard.
   `jsonb_set` update, with a test that two answers survive a review landing between them.
 
 
+### 8. Reading real CVs and answering questions about them (`pdfText.js`, `documentChunks.js`, `agent.js`)
+
+- **Key prompt (paraphrased):** "its kinda broken isnt it" (screenshots of the Coach refusing CV questions), then "i tried a groupmate's cv".
+- **Generated:** the position-based PDF text reader, the section-based chunker, the "search the user's own CV with a lower floor" retrieval, the search-first step in the Coach, Coach prompt v3, a synthetic two-column and a heading-strip CV generator, ADR 0004 and 13 tests.
+- **Checked / changed by me:** I reproduced the failure before changing anything (a synthetic CV scored 2/8 on the questions a candidate would ask, a real group member's CV 2/6) and measured after each change (8/8 and 6/6). The groupmate's CV was only read locally and through a temporary account that was deleted afterwards. I broke the sidebar rule and the search-first step on purpose to confirm the tests go red.
+- **AI got it wrong, case 13:** my first column reader put every left-hand item before every right-hand item. On the groupmate's CV the section headings sit in a narrow strip beside their text, so all five headings came out first, exactly like the old extractor. Found by printing the line structure of the real file, not by the synthetic fixture, which had a different layout. Fixed with a row-by-row rule for a strip that holds only headings, and a second fixture.
+- **AI got it wrong, case 14:** I assumed the model would call `search_knowledge` for CV questions because the prompt says so. With the small local model it often did not call any tool for "which role should I interview for?", and the Coach then said it found nothing. Found from the event log of one request. The search now runs in code first for document questions.
+
 ### 7. Local model first, Gemini as the fallback (`llmProviders.js`, `localToolClient.js`, `llmService.js`)
 
 - **Key prompt (paraphrased):** "if I want to run local, do we have to rewrite some of the code to use
