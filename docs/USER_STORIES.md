@@ -1,8 +1,8 @@
 # User stories, tiêu chí chấp nhận và bảng truy vết – InterviewAI
 
 Tài liệu này dùng cho báo cáo (mục "user stories + traceability table" của đề). Trạng thái được lập ngày
-**26/10/2026** trên `origin/main` (commit `84212ad`), cộng với nhánh `khoa/history-and-usage` chứa US-05 và US-13
-(đã chạy và kiểm thử nhưng **chưa gộp vào `main`**). Mỗi story ghi rõ chủ module, trạng thái và mức đã kiểm chứng.
+**26/10/2026** trên `origin/main` (commit `b10ddf8`), cộng với nhánh `khoa/history-and-usage` chứa US-05 và bản mở rộng
+của US-13 (đã chạy và kiểm thử nhưng **chưa gộp vào `main`**). Mỗi story ghi rõ chủ module, trạng thái và mức đã kiểm chứng.
 
 **Cách đọc trạng thái**
 
@@ -32,7 +32,7 @@ Lịch sử Git trên GitHub không chứa khoá bí mật.
 | US-10 | Nhờ Coach làm việc bằng tool, có xác nhận | Đức | **B** Agent | ✅ |
 | US-11 | Quản lý kế hoạch luyện tập (CRUD) | Đức | – | ✅ |
 | US-12 | App vẫn dùng được khi AI lỗi | Đức | Guardrail | ✅ |
-| US-13 | Admin xem thống kê sử dụng AI | Khoa | Logging | ✅ (nhánh `khoa/history-and-usage`, chưa gộp vào `main`; chi phí hiện "unknown" do chưa có giá model) |
+| US-13 | Admin xem thống kê sử dụng AI | Đức (trên `main`) + Khoa (bản mở rộng) | Logging | ✅ Trang Admin của Đức đã có trên `main`; bản mở rộng của Khoa nằm ở nhánh `khoa/history-and-usage`, chưa gộp; chi phí hiện "unknown" do chưa có giá model |
 | US-14 | *(tuỳ chọn)* Nhận dạng giọng nói bằng AI | Đức | D Multimodal | ❌ (nhánh `cloud-speech-trial` chưa gộp) |
 
 Ba capability bắt buộc cho nhóm 3 người: **A (RAG)**, **B (tool agent)**, **C (structured output)** đều đã có trên `main`.
@@ -68,7 +68,7 @@ Ba capability bắt buộc cho nhóm 3 người: **A (RAG)**, **B (tool agent)**
 
 **Truy vết:** `backend/src/middleware/requireRole.js`, `backend/src/server.js` (`/api/admin`), `backend/scripts/bootstrapAdmins.js`, `frontend/src/components/ProtectedRoute.jsx`, `frontend/src/App.jsx` (route `/admin/*`);
 test `person3-auth.test.js`, `person3-http.test.js`, `person3-sql.test.js`.
-**Ghi chú:** trang Admin hiện chỉ là trang giữ chỗ; thống kê nằm ở US-13.
+**Ghi chú:** trang Admin trên `main` (Đức) có Tổng quan sử dụng AI, danh sách nhật ký AI và trang xem `AI_USAGE.md`; phần thống kê xem US-13.
 
 ## US-03 – Luyện phỏng vấn và nhận điểm (Khoa)
 
@@ -190,7 +190,7 @@ test `person3-agent.test.js`, `person3-sql.test.js`, `frontend/src/components/Co
 **Truy vết:** `backend/src/services/aiHealth.js`, `server.js` (`/api/health/ai`), `services/aiTelemetry.js`, `critiqueService.js` / `chatService.js` (nhận xét và trả lời dự phòng); `frontend/src/components/AiStatusBanner.jsx`; test `person3-ai.test.js`, `merge-llm.test.js`, `critique.test.js`.
 **Mức kiểm chứng:** khoá API sai → agent trả bản dự phòng và trạng thái AI chuyển "không khả dụng" (chạy thật). Banner trên trình duyệt khi AI sập chưa được kiểm tra bằng mắt.
 
-## US-13 – Admin xem thống kê sử dụng AI (Khoa)
+## US-13 – Admin xem thống kê sử dụng AI (Đức trên `main`, Khoa mở rộng)
 
 *Là quản trị viên, tôi muốn biết app dùng AI bao nhiêu, nhanh chậm, lỗi và tốn kém thế nào.*
 
@@ -200,6 +200,12 @@ test `person3-agent.test.js`, `person3-sql.test.js`, `frontend/src/components/Co
 - Số liệu lấy thật từ bảng `ai_logs`; request bị guard từ chối trước khi gọi model không tính vào thời gian, token, chi phí.
 - **Giá chưa biết là "unknown", không phải 0**: trang ghi rõ chi phí chỉ bao gồm bao nhiêu trên tổng số request có gọi model; token không được báo cũng hiện "-" thay vì 0.
 - Giao diện `/admin/usage`: bộ lọc thời gian (7/30/90 ngày hoặc tự chọn) và capability / model / prompt, thẻ tổng quan, biểu đồ theo ngày, ba bảng chi tiết; dùng được trên điện thoại.
+
+**Hai phiên bản hiện cùng tồn tại (cần chọn hoặc gộp trước khi nộp)**
+- **Trên `main` (Đức, 26/10):** `GET /api/admin/ai-usage?range=7|30|90` (hàm SQL `admin_ai_usage_summary`, migration `supabase/migrations/20261026000100_admin_ai_usage_summary.sql`), `GET /api/admin/ai-logs` (nhật ký có lọc và phân trang), `GET /api/admin/ai-usage-log` (xem `AI_USAGE.md`); giao diện `frontend/src/pages/admin/` (Tổng quan, nhật ký AI, AI_USAGE). Có đủ: số request, token, chi phí ước tính, thời gian trung bình, lỗi, bị từ chối, biểu đồ theo ngày; chi phí chưa biết được ghi rõ là không tính như miễn phí. Phần này chưa được kiểm tra lại bởi Khoa ngoài việc đọc mã.
+- **Nhánh `khoa/history-and-usage` (Khoa):** bổ sung p95, thống kê theo capability / model / phiên bản prompt, bộ lọc, và loại các request bị từ chối khỏi thời gian trung bình (bản của Đức tính cả các request này).
+
+Mô tả và truy vết dưới đây là của **phiên bản Khoa** (nhánh `khoa/history-and-usage`).
 
 **Truy vết**
 | Thành phần | File |
