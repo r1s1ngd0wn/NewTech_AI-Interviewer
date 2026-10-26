@@ -973,3 +973,64 @@ p {
 .plan-items > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #e2e8f0; }
 .plan-items details { font-size: .8rem; overflow-wrap: anywhere; }
 .tool-label { display: inline-block; margin-right: .5rem; }
+
+/* --- Interview history (search, filter, sort, pagination) ------------------*/
+.history-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--spacing-12) var(--spacing-16);
+  align-items: end;
+  margin-bottom: var(--spacing-16);
+}
+.history-form .field { margin-bottom: 0; }
+.history-search { grid-column: 1 / -1; }
+.history-actions { align-self: end; }
+.history-summary { min-height: 1.5em; margin: var(--spacing-8) 0; font-size: var(--text-body-sm); }
+.history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--spacing-12); }
+.history-item { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-16); flex-wrap: wrap; }
+.history-main { min-width: 0; flex: 1 1 16rem; }
+.history-main h3 { overflow-wrap: anywhere; }
+.history-side { justify-content: flex-end; }
+.history-pager { justify-content: center; margin: var(--spacing-24) 0; }
+
+/* --- Admin AI usage dashboard ---------------------------------------------*/
+.usage-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--spacing-8) var(--spacing-16);
+  align-items: end;
+  margin: var(--spacing-16) 0;
+}
+.usage-filters .field { margin-bottom: 0; }
+.usage-period { grid-column: 1 / -1; }
+.usage-label { display: block; font-weight: 500; font-size: var(--text-body-sm); margin-bottom: var(--spacing-8); }
+.usage-kpis { margin-bottom: var(--spacing-16); }
+.usage-kpi { display: flex; flex-direction: column; gap: var(--spacing-8); }
+.usage-kpi .eyebrow { margin-bottom: 0; }
+.usage-kpi-value { font-family: var(--font-display); font-size: var(--text-heading-sm); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.usage-kpi-note { font-size: var(--text-caption); }
+.usage-footnote { font-size: var(--text-body-sm); margin: 0 0 var(--spacing-16); }
+.usage-table-card { margin-bottom: var(--spacing-16); overflow-x: auto; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: var(--text-body-sm); font-variant-numeric: tabular-nums; }
+.usage-table th, .usage-table td { padding: var(--spacing-8) var(--spacing-12); text-align: right; white-space: nowrap; }
+.usage-table thead th { font-weight: 500; font-size: var(--text-caption); color: var(--color-smoke); }
+.usage-table tbody th { text-align: left; font-weight: 600; }
+.usage-table thead th:first-child { text-align: left; }
+.usage-table tbody tr { border-top: 1px solid var(--color-hairline); }
+.usage-days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--spacing-8); }
+.usage-day { display: grid; grid-template-columns: 6.5rem 1fr minmax(6rem, auto); gap: var(--spacing-12); align-items: center; font-size: var(--text-body-sm); font-variant-numeric: tabular-nums; }
+.usage-bar { display: flex; height: 0.9rem; background: var(--color-mist); border-radius: var(--radius-pill); overflow: hidden; }
+.usage-bar-ok { background: var(--color-charcoal); }
+.usage-bar-failed { background: #b25e00; background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.55) 0 2px, transparent 2px 5px); }
+.usage-day-count { text-align: right; }
+@media (max-width: 600px) {
+  .history-item { align-items: flex-start; }
+  .history-side { justify-content: flex-start; }
+  .usage-day { grid-template-columns: 5.5rem 1fr; }
+  .usage-day-count { grid-column: 1 / -1; text-align: left; }
+  .usage-table .hide-sm { display: none; }
+  .usage-table { font-size: var(--text-caption); }
+  .usage-table th, .usage-table td { padding: var(--spacing-8) 5px; }
+  .usage-table-card.card-pad { padding: var(--spacing-16) var(--spacing-12); }
+  .usage-table tbody th { white-space: normal; overflow-wrap: anywhere; }
+}

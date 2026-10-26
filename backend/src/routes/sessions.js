@@ -1,6 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const sessionService = require("../services/sessionService");
+const historyService = require("../services/historyService");
 const chatService = require("../services/chatService");
 const documentService = require("../services/documentService");
 const llmService = require("../services/llmService");
@@ -16,6 +17,16 @@ router.post("/", async (req, res, next) => {
     if (!scenarioId) return res.status(400).json({ error: "scenarioId is required" });
     const result = await sessionService.startSession(req.user.id, scenarioId);
     res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// The caller's own interview history: ?q=&scenario=&status=&from=&to=&sort=date|score&order=&page=&limit=
+// (must stay above "/:id" so "/" is not read as an id).
+router.get("/", async (req, res, next) => {
+  try {
+    res.json(await historyService.searchHistory(req.user.id, req.query));
   } catch (err) {
     next(err);
   }

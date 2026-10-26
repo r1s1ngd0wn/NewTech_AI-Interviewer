@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { api, getToken, setToken, AUTH_EXPIRED_EVENT } from '../lib/api.js';
 import { supabase, requireSupabase, previewAuth } from '../lib/supabase.js';
 const AuthContext = createContext(null);
@@ -51,7 +51,7 @@ export function AuthProvider({ children }) {
       if (!previewAuth && supabase) supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, expired);
-    return () => { cancelled = true; subscription?.data.subscription.unsubscribe(); window.removeEventListener(AUTH_EXPIRED_EVENT, expired); };
+    return () => { cancelled = true; subscription?.data?.subscription?.unsubscribe(); window.removeEventListener(AUTH_EXPIRED_EVENT, expired); };
   }, []);
   const refreshUser = useCallback(async () => { const { user } = await api.me(); setUser(user); return user; }, []);
   const login = useCallback(async (email, password) => {

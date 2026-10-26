@@ -40,8 +40,14 @@ function getPool() {
   };
 }
 
+// Runs a query with the backend's own database role, ignoring the signed-in user's row-level security.
+// Only for admin-only reads of tables no user may touch (ai_logs), and only after requireRole('admin').
+function privilegedQuery(sql, values) {
+  return basePool().query(sql, values);
+}
+
 async function checkConnection() {
   await getPool().query("SELECT 1");
 }
 
-module.exports = { getPool, withTransaction, checkConnection };
+module.exports = { getPool, withTransaction, privilegedQuery, checkConnection };

@@ -87,6 +87,14 @@ async function streamRequest(path, message, onEvent, signal) {
   if (!completed) throw new Error("the reply stream ended before completion");
 }
 
+// "?a=1&b=2" from an object, leaving out empty values (so unset filters never reach the server).
+export function queryString(params = {}) {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ).toString();
+  return query ? `?${query}` : "";
+}
+
 export const api = {
   register: (payload) => request("/auth/register", { method: "POST", body: payload, auth: false }),
   login: (payload) => request("/auth/login", { method: "POST", body: payload, auth: false }),
@@ -149,4 +157,8 @@ export const api = {
     request(`/sessions/${id}/documents/${documentId}`, { method: "DELETE" }),
 
   getProgress: () => request("/progress"),
+  // The signed-in user's own interview history: q, scenario, status, from, to, sort, order, page, limit.
+  searchSessions: (params) => request(`/sessions${queryString(params)}`),
+  // Admin only: AI usage statistics: from, to, capability, model, prompt.
+  getUsage: (params) => request(`/admin/usage${queryString(params)}`),
 };

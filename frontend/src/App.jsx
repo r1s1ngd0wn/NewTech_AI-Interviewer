@@ -11,6 +11,9 @@ import DocumentsPage from "./pages/DocumentsPage.jsx";
 import CoachPage from "./pages/CoachPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 import PlanPage from './pages/PlanPage.jsx';
+import HistoryPage from './pages/HistoryPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
+import AdminUsagePage from './pages/AdminUsagePage.jsx';
 
 export default function App() {
   return (
@@ -24,7 +27,9 @@ export default function App() {
           <Route path="/" element={<Navigate to="/scenarios" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/plans" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
-          <Route path="/admin/*" element={<ProtectedRoute role="admin"><div className="page container"><h1>Admin</h1><p>Administrator access is enabled.</p></div></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute role="admin"><AdminPage /></ProtectedRoute>} />
+          <Route path="/admin/usage" element={<ProtectedRoute role="admin"><AdminUsagePage /></ProtectedRoute>} />
           <Route
             path="/onboarding"
             element={

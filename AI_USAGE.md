@@ -116,6 +116,30 @@ prompt files, history, admin usage dashboard.
   answer submitted a moment earlier. Caught while designing the merge; replaced with a single-field
   `jsonb_set` update, with a test that two answers survive a review landing between them.
 
+### 6. History search and the admin AI usage dashboard (US-05, US-13)
+
+- **Key prompt (paraphrased):** "can we do 05 and 13".
+- **Generated:** `GET /api/sessions` (validation in `historyService.js`, SQL and an in-memory twin in
+  `store/sessionSearch.js`), `GET /api/admin/usage` (`usageService.js`, aggregation SQL over `ai_logs`),
+  the History and Admin usage pages, and their tests.
+- **Checked / changed by me:** the SQL is tested on a real PostgreSQL (PGlite) with the project's actual
+  migrations and row-level security, and the memory search must return exactly what the SQL returns. The usage
+  figures were checked against totals calculated by hand from seed rows, and against a plain `count(*)` on the
+  live `ai_logs` table (140 = 140). Pages were opened in a real browser at desktop and 375 px width.
+- **Design choices that were mine to check:** a refused request (no model called) is left out of latency and
+  cost; an unknown price is shown as "unknown" and counted, never as 0; filters travel in the URL; every value
+  reaches SQL as a bound parameter and the only text built into a statement comes from two whitelists.
+- **AI got it wrong, case 8:** a test file I wrote (`usageFormat.test.js`) never ran. The Vitest config only
+  includes `*.test.jsx`, so my `.js` file was silently skipped and the suite still said "passed". I noticed the
+  count (33) equalled the old 16 plus only the two page suites, widened the pattern, and the 6 hidden tests ran.
+- **AI got it wrong, case 9:** `beforeEach(() => api.getUsage.mockResolvedValue(...))` returns the mock, and
+  Vitest runs a function returned from `beforeEach` as a cleanup hook, so after the "error" test it called the
+  mock again, got a rejected promise and failed the test with an error that pointed at the wrong line. Fixed with
+  braces; the same trap is why the History test used braces.
+- **AI got it wrong, case 10:** my first run of the pages in a browser showed a blank screen. The cause was not my
+  code but `AuthContext.jsx` in the documented preview-auth mode: `false?.data.subscription` throws when
+  `subscription` is `false`. One-character fix (`?.data?.subscription?.`), reported to Đức. Only a real browser
+  run could have found it, because the unit tests never mount the provider in preview mode.
 ---
 
 ## Long

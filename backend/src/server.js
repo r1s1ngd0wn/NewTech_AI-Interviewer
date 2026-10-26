@@ -33,6 +33,7 @@ app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 app.get('/api/health/ai', (req, res) => res.json(require('./services/aiHealth').status()));
 app.use('/api/plans', require('./routes/plans'));
 app.use('/api/admin', requireAuth, requireRole('admin'));
+app.use('/api/admin', require('./routes/admin'));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 app.use("/api/auth/login", authLimiter);
