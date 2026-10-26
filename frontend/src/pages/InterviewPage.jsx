@@ -338,12 +338,13 @@ export default function InterviewPage() {
                       type="button"
                       className={`mic-button ${speech.isRecording ? "recording" : ""}`}
                       onClick={handleToggleMic}
+                      disabled={speech.isStarting || speech.isTranscribing}
                       aria-label={speech.isRecording ? "Stop recording your answer" : "Start recording your answer"}
                     >
                       {speech.isRecording ? <StopIcon /> : <MicIcon />}
                     </button>
                     <span className="muted" style={{ fontSize: "0.8rem" }}>
-                      {speech.isRecording ? "Listening..." : "Tap to speak"}
+                      {speech.isStarting ? "Waiting for microphone..." : speech.isTranscribing ? "Transcribing..." : speech.isRecording ? "Listening..." : "Tap to speak"}
                     </span>
                   </div>
                 ) : null}
@@ -377,7 +378,7 @@ export default function InterviewPage() {
                     <button
                       className="btn btn-primary"
                       onClick={handleSubmitAnswer}
-                      disabled={!draft.trim() || submitting || tooLong}
+                      disabled={!draft.trim() || submitting || tooLong || speech.isRecording || speech.isStarting || speech.isTranscribing}
                     >
                       {submitting && <span className="spinner" aria-hidden="true" />}
                       Submit answer

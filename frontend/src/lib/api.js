@@ -16,7 +16,8 @@ export function setToken(token) {
 }
 
 async function request(path, { method = "GET", body, auth = true } = {}) {
-  const isFormData = body instanceof FormData;
+  // Files and recordings are sent as they are; the browser sets their content type.
+  const isFormData = body instanceof FormData || (typeof Blob !== "undefined" && body instanceof Blob);
   const headers = isFormData ? {} : { "Content-Type": "application/json" };
   if (auth) {
     const token = await getToken();
@@ -117,6 +118,8 @@ export const api = {
   getSession: (id) => request(`/sessions/${id}`),
   submitAnswer: (id, answerText, inputMode) =>
     request(`/sessions/${id}/answer`, { method: "POST", body: { answerText, inputMode } }),
+  speechStatus: () => request("/speech/status"),
+  transcribeAudio: (audio) => request("/speech/transcribe", { method: "POST", body: audio }),
   finishSession: (id) => request(`/sessions/${id}/finish`, { method: "POST" }),
   getFeedback: (id) => request(`/sessions/${id}/feedback`),
   deleteSession: (id) => request(`/sessions/${id}`, { method: "DELETE" }),

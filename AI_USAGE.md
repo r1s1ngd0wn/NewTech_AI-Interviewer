@@ -117,6 +117,14 @@ prompt files, history, admin usage dashboard.
   `jsonb_set` update, with a test that two answers survive a review landing between them.
 
 
+### 9. Groq Whisper speech-to-text (`speechService.js`, `routes/speech.js`, `useSpeech.js`)
+
+- **Key prompt (paraphrased):** "is this using webrtc or grok api?" (it is the browser's Web Speech API), then "can you do the groq whisper speech model? i have faith in you".
+- **Generated:** the backend transcription service and route, the recording version of the speech hook (ported from the unmerged `cloud-speech-trial` branch, speech-to-text only), the page changes, 8 backend and 6 frontend tests, README and privacy notes.
+- **Checked / changed by me:** I rebuilt it on current `main` instead of merging the 15-day-old branch, added the login check, size limit and rate limit, kept speech failures out of the AI health banner, and broke the hook on purpose to confirm its tests go red.
+- **AI got it wrong, case 15:** I told you the old trial's speech endpoints had no login check. They did (`requireAuth`); I had not read the file when I said it. Found when I opened it to port the code.
+- **AI got it wrong, case 16:** my first test file stacked several mocks of `fetch` in one test, which left a broken mock behind and made the next test fail with a misleading "fetch failed". Found because the failing test passed on its own; fixed with a single mock whose behaviour is switched.
+
 ### 7. Local model first, Gemini as the fallback (`llmProviders.js`, `localToolClient.js`, `llmService.js`)
 
 - **Key prompt (paraphrased):** "if I want to run local, do we have to rewrite some of the code to use
