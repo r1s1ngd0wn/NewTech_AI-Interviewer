@@ -41,9 +41,10 @@ const EXPERIENCE = [
   ["bullet", "Co-developed an Android food discovery app in Java with Firebase and real-time location features."],
   ["bullet", "Implemented secure access rules for a small cloud project on AWS Academy."],
 ];
-const EDUCATION = ["BACHELOR OF SOFTWARE ENGINEERING", "Example University of Technology", "2023 - Present"];
+const EDUCATION = ["BACHELOR OF SOFTWARE ENGINEERING", "Example University of Technology and Engineering, Faculty of Information Technology", "2023 - Present"];
 const SKILLS = ["Languages: C#, Java, Python, SQL", "Frameworks: .NET, ASP.NET MVC", "Tools: PostgreSQL, Firebase, Docker, Git"];
 const LANGUAGES = ["Vietnamese: Native", "English: Professional"];
+const INTERESTS = "Backend systems, database design, open source tools, hackathons with friends, mentoring first-year students, practising clear technical writing, reading about distributed systems and testing small ideas on weekends with side projects that solve real problems.";
 
 function pieces(text, size, x, y, font = "F1") {
   // A line is written as one piece per word, except the words listed in SPLITS, which are cut in two.
@@ -64,39 +65,42 @@ function pieces(text, size, x, y, font = "F1") {
   return out;
 }
 
-function layout() {
+function layout(rightX = 270, leftWidth = 200) {
   const items = [];
   const push = (list) => items.push(...list);
   push(pieces("TRAN MINH ANH", 20, 40, 800, "F2"));
   push(pieces("anh.tran@example.invalid | +84 900 000 000 | Da Nang", 9, 40, 782));
   // Headings first, away from their text.
   push(pieces("PROFILE", 13, 40, 750, "F2"));
-  push(pieces("EXPERIENCE", 13, 270, 640, "F2"));
-  push(pieces("REFERENCES", 13, 270, 250, "F2"));
+  push(pieces("EXPERIENCE", 13, rightX, 640, "F2"));
+  push(pieces("REFERENCES", 13, rightX, 250, "F2"));
   let y = 732;
   for (const line of wrap(PROFILE, 10, 515)) { push(pieces(line, 10, 40, y)); y -= 13; }
   // Right column.
   y = 618;
   for (const [kind, text] of EXPERIENCE) {
     if (kind === "bullet") {
-      for (const [index, line] of wrap(text, 10, 265).entries()) { push(pieces(index === 0 ? `- ${line}` : `  ${line}`, 10, 270, y)); y -= 13; }
+      for (const [index, line] of wrap(text, 10, 265).entries()) { push(pieces(index === 0 ? `- ${line}` : `  ${line}`, 10, rightX, y)); y -= 13; }
     } else {
       y -= 6;
-      push(pieces(kind, 10, 270, y, "F2")); y -= 13;
-      push(pieces(text, 9, 270, y)); y -= 14;
+      push(pieces(kind, 10, rightX, y, "F2")); y -= 13;
+      push(pieces(text, 9, rightX, y)); y -= 14;
     }
   }
-  push(pieces("Available on request.", 10, 270, 232));
+  push(pieces("Available on request.", 10, rightX, 232));
   // Left column last, headings again before their text.
   push(pieces("EDUCATION", 13, 40, 640, "F2"));
   push(pieces("SKILLS", 13, 40, 520, "F2"));
   push(pieces("LANGUAGES", 13, 40, 400, "F2"));
   y = 622;
-  for (const line of EDUCATION) { for (const part of wrap(line, 10, 200)) { push(pieces(part, 10, 40, y)); y -= 13; } }
+  for (const line of EDUCATION) { for (const part of wrap(line, 10, leftWidth)) { push(pieces(part, 10, 40, y)); y -= 13; } }
   y = 502;
-  for (const line of SKILLS) { for (const part of wrap(line, 10, 200)) { push(pieces(part, 10, 40, y)); y -= 13; } y -= 3; }
+  for (const line of SKILLS) { for (const part of wrap(line, 10, leftWidth)) { push(pieces(part, 10, 40, y)); y -= 13; } y -= 3; }
   y = 382;
   for (const line of LANGUAGES) { push(pieces(line, 10, 40, y)); y -= 13; }
+  push(pieces("INTERESTS", 13, 40, 330, "F2"));
+  y = 312;
+  for (const part of wrap(INTERESTS, 10, leftWidth)) { push(pieces(part, 10, 40, y)); y -= 13; }
   return items;
 }
 
@@ -143,9 +147,34 @@ function buildTwoColumnCvPdf(items = layout()) {
   return Buffer.from(out, "latin1");
 }
 
-const buildSidebarCvPdf = () => buildTwoColumnCvPdf(sidebarLayout());
+// A plain one-column CV with a short date at the right edge of each job line. It must not be mistaken
+// for two columns (that would read all the job titles first and all the dates after them).
+function singleColumnLayout() {
+  const items = [];
+  const jobs = [
+    ["Software Engineer Intern", "Jul 2026", "Built invoicing modules with Node.js and cut report loading time by thirty percent for the finance team."],
+    ["Teaching Assistant", "Sep 2025", "Ran weekly lab sessions on databases and marked coursework for sixty students in the second year."],
+    ["Student Developer", "Jan 2025", "Maintained the faculty website and fixed accessibility problems found in an audit by the university."],
+  ];
+  items.push(...pieces("TRAN MINH ANH", 18, 40, 800, "F2"));
+  items.push(...pieces("EXPERIENCE", 13, 40, 765, "F2"));
+  let y = 742;
+  for (const [title, date, text] of jobs) {
+    items.push(...pieces(title, 11, 40, y));
+    items.push(...pieces(date, 10, 480, y));
+    y -= 15;
+    for (const line of wrap(text, 10, 300)) { items.push(...pieces(line, 10, 40, y)); y -= 13; }
+    y -= 14;
+  }
+  return items;
+}
 
-module.exports = { buildTwoColumnCvPdf, buildSidebarCvPdf };
+const buildSidebarCvPdf = () => buildTwoColumnCvPdf(sidebarLayout());
+// The same CV with only about ten points between the columns, as in many designed templates.
+const buildSingleColumnCvPdf = () => buildTwoColumnCvPdf(singleColumnLayout());
+const buildNarrowGutterCvPdf = () => buildTwoColumnCvPdf(layout(254, 205));
+
+module.exports = { buildTwoColumnCvPdf, buildSidebarCvPdf, buildNarrowGutterCvPdf, buildSingleColumnCvPdf };
 
 if (require.main === module) {
   const target = process.argv[2] || "sample-cv-twocolumn.pdf";

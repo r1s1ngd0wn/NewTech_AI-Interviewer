@@ -8,7 +8,7 @@ const { classifyCoachRequest } = require("../src/agent/answerPolicy");
 const { knowledgeIntent } = require("../src/services/ragService");
 const { executeTool } = require("../src/agent/tools");
 const { runAgent, excerptOf } = require("../src/agent/agent");
-const { buildTwoColumnCvPdf, buildSidebarCvPdf } = require("./helpers/twoColumnPdf");
+const { buildTwoColumnCvPdf, buildSidebarCvPdf, buildNarrowGutterCvPdf, buildSingleColumnCvPdf } = require("./helpers/twoColumnPdf");
 
 const extract = (buffer) => documents.extractText({ buffer }, "application/pdf");
 
@@ -29,6 +29,19 @@ test("pdf: headings in a side strip stay in front of the text beside them", asyn
   assert.match(text, /SKILLS\nBackend: Java/);
   assert.match(text, /PROJECTS\nCampus Courses/);
   assert.match(text, /CERTIFICATIONS\nCloud Foundations/);
+});
+
+test("pdf: columns only ten points apart are still read one after the other", async () => {
+  const text = await extract(buildNarrowGutterCvPdf());
+  const order = ["PROFILE", "EDUCATION", "SKILLS", "LANGUAGES", "EXPERIENCE", "SOFTWARE ENGINEER INTERN", "ACADEMIC PROJECTS", "REFERENCES"].map((heading) => text.indexOf(heading));
+  assert.ok(order.every((position, index) => position >= 0 && (index === 0 || position > order[index - 1])), `unexpected order ${order}`);
+  assert.ok(text.indexOf("Tools: PostgreSQL") < text.indexOf("EXPERIENCE"), "the whole left column comes before the right one");
+});
+
+test("pdf: a one-column CV with dates at the right edge is not split into columns", async () => {
+  const text = await extract(buildSingleColumnCvPdf());
+  const order = ["Software Engineer Intern", "Jul 2026", "Built invoicing modules", "Teaching Assistant", "Sep 2025", "Ran weekly lab sessions", "Student Developer", "Jan 2025", "Maintained the faculty website"].map((part) => text.indexOf(part));
+  assert.ok(order.every((position, index) => position >= 0 && (index === 0 || position > order[index - 1])), `unexpected order ${order}`);
 });
 
 test("chunks: every CV section keeps its heading as a label and chunks stay small", async () => {

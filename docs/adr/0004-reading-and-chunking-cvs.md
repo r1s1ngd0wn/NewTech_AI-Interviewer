@@ -48,6 +48,7 @@ Option 3.
   `scripts/reindexDocuments.js`) to get the new ones.
 - More chunks per file means more embedding calls per upload (a typical CV goes from 2 to 4 to 6).
 - Coach prompt is now `duc-v3`; it tells the model that sources are included and to summarize them.
-- Limits: a scanned PDF still has no text, a layout with three or more columns is read as two, and a
+- Limits: a scanned PDF still has no text, a gutter narrower than about 7 points is not seen (the page is
+  then read row by row), a layout with three or more columns is read as two, and a
   small model can still stretch a source in its wording; the citation check does not catch every
   paraphrase.

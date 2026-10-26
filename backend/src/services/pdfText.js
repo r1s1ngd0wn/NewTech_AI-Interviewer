@@ -13,7 +13,8 @@
 const SAME_LINE = 0.45;        // baseline distance, in text heights, for two pieces to share a line
 const JOIN_WITHOUT_SPACE = 0.12; // gaps under this many text heights are kerning, not a space
 const COLUMN_GAP = 1.6;        // gaps over this many text heights split a line into segments
-const MIN_GUTTER = 0.03;       // narrowest accepted gutter, as a share of the page width
+const MIN_GUTTER = 0.012;      // narrowest accepted gutter, as a share of the page width (about 7 points)
+const MIN_COLUMN_TEXT = 0.18;  // each side of a gutter must hold a line at least this wide (a real column, not dates)
 const PARAGRAPH_GAP = 1.7;     // vertical distance (in text heights) that marks a new paragraph
 
 function pieceOf(item) {
@@ -55,12 +56,12 @@ function buildSegments(items) {
 function findGutter(segments, pageWidth) {
   const narrow = segments.filter((segment) => segment.x1 - segment.x0 < 0.6 * pageWidth);
   if (narrow.length < 6) return null;
-  const BIN = 2;
+  const BIN = 1;
   const bins = new Array(Math.ceil(pageWidth / BIN) + 1).fill(0);
   for (const segment of narrow) {
     for (let bin = Math.max(0, Math.floor(segment.x0 / BIN)); bin <= Math.min(bins.length - 1, Math.floor(segment.x1 / BIN)); bin++) bins[bin]++;
   }
-  const allowed = Math.max(1, Math.floor(0.08 * narrow.length));
+  const allowed = Math.max(1, Math.floor(0.1 * narrow.length));
   let best = null;
   let start = null;
   for (let bin = 0; bin <= bins.length; bin++) {
@@ -77,7 +78,10 @@ function findGutter(segments, pageWidth) {
   if (!best) return null;
   const left = narrow.filter((segment) => segment.x1 <= best.middle + 2).length;
   const right = narrow.filter((segment) => segment.x0 >= best.middle - 2).length;
-  return left >= 3 && right >= 3 ? best.middle : null;
+  const widest = (list) => Math.max(0, ...list.map((segment) => segment.x1 - segment.x0));
+  const leftWidth = widest(narrow.filter((segment) => segment.x1 <= best.middle + 2));
+  const rightWidth = widest(narrow.filter((segment) => segment.x0 >= best.middle - 2));
+  return left >= 3 && right >= 3 && leftWidth >= MIN_COLUMN_TEXT * pageWidth && rightWidth >= MIN_COLUMN_TEXT * pageWidth ? best.middle : null;
 }
 
 // Segments row by row, top to bottom; pieces on (nearly) the same baseline read left to right.
