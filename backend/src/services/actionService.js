@@ -1,6 +1,7 @@
 const { randomUUID } = require('node:crypto');
 const { validatePlan, validateItem, dbError } = require('./planService');
 const { httpError } = require('../utils/httpError');
+const scenarioService = require('./scenarioService');
 
 function validateAction(tool, args) {
   if (tool === 'create_practice_plan') return validatePlan(args);
@@ -10,11 +11,17 @@ function validateAction(tool, args) {
   }
   throw httpError(400, 'unknown write tool');
 }
+function assertActionScenariosActive(tool, payload, currentScenarioId) {
+  const items = tool === 'create_practice_plan' ? payload.items
+    : tool === 'update_practice_plan_item' && payload.change.scenarioId && payload.change.scenarioId !== currentScenarioId ? [payload.change] : [];
+  for (const item of items) if (!scenarioService.isActive(item.scenarioId)) throw httpError(409, 'inactive scenarios cannot be added to a plan', 'SCENARIO_INACTIVE');
+}
 function createActionService(db, plans) {
   return {
     async propose(userId, tool, args) {
       const payload = validateAction(tool, args);
-      if (tool === 'update_practice_plan_item') await plans.getItem(userId, payload.id);
+      const existing = tool === 'update_practice_plan_item' ? await plans.getItem(userId, payload.id) : null;
+      assertActionScenariosActive(tool, payload, existing?.scenarioId);
       const r = await db.rpc('propose_coach_action', { tool_name: tool, payload });
       dbError(r.error); return r.data;
     },
@@ -23,7 +30,9 @@ function createActionService(db, plans) {
       // and performs the write in one transaction; clients cannot edit its payload.
       const action = await db.from('pending_actions').select('*').eq('id', id).eq('user_id', userId).maybeSingle();
       dbError(action.error); if (!action.data) throw httpError(404, 'action not found');
-      validateAction(action.data.tool, action.data.payload);
+      const payload=validateAction(action.data.tool, action.data.payload);
+      const existing=action.data.tool==='update_practice_plan_item'?await plans.getItem(userId,payload.id):null;
+      assertActionScenariosActive(action.data.tool,payload,existing?.scenarioId);
       const r = await db.rpc('confirm_coach_action', { action_id: id });
       dbError(r.error); return r.data;
     },
@@ -45,12 +54,13 @@ function createMemoryActionService(plans, now = Date.now) {
   return {
     async propose(user_id, tool, args) {
       const payload = validateAction(tool, args);
-      if (tool === 'update_practice_plan_item') await plans.getItem(user_id, payload.id);
+      const existing=tool==='update_practice_plan_item'?await plans.getItem(user_id,payload.id):null;
+      assertActionScenariosActive(tool, payload,existing?.scenarioId);
       const a = { id: randomUUID(), user_id, tool, payload, status: 'pending', expires_at: new Date(now() + 600000).toISOString() };
       actions.set(a.id, a); return structuredClone(a);
     },
     async confirm(user, id) {
-      const a = get(user, id); a.status = 'executing';
+      const a = get(user, id); const existing=a.tool==='update_practice_plan_item'?await plans.getItem(user,a.payload.id):null; assertActionScenariosActive(a.tool,a.payload,existing?.scenarioId); a.status = 'executing';
       try {
         const result = a.tool === 'create_practice_plan' ? await plans.create(user, a.payload)
           : await plans.updateItem(user, a.payload.id, a.payload.change);

@@ -246,6 +246,9 @@ Set `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and optional model var
 the environment or a repo-root `.env` before `docker compose up --build`. Keep that file out of
 Git. Frontend is at http://localhost:5173; backend at http://localhost:4000. Data is in Supabase,
 not a Docker volume. For local LLMs in Docker, use a host address reachable from the container.
+Admin scenario metadata and availability are stored in the `scenario_data` Docker volume; keep
+that volume attached when recreating the backend container. A multi-replica deployment needs a
+shared persistent store before scenario edits are enabled across replicas.
 
 ## What's implemented vs. mocked
 

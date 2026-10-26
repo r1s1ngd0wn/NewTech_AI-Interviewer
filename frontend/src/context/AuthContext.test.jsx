@@ -14,7 +14,7 @@ vi.mock('../lib/supabase.js', () => {
 });
 import { AuthProvider, useAuth } from './AuthContext.jsx';
 import { api, getToken } from '../lib/api.js';
-function Identity() { const { user, loading } = useAuth(); return <p>{loading ? 'Loading' : user?.name || 'Signed out'}</p>; }
+function Identity() { const { user, loading, authError } = useAuth(); return <><p>{loading ? 'Loading' : user?.name || 'Signed out'}</p>{authError && <p role="alert">{authError}</p>}</>; }
 function AuthControls() {
   const auth = useAuth();
   return <><button onClick={() => auth.updateProfile({ name: 'Changed' }).then(result => { fake.profileResult = result; })}>Save profile</button><button onClick={() => auth.refreshUser()}>Refresh profile</button><button onClick={() => auth.login('bob@example.test', 'secret').catch(() => {})}>Switch account</button><button onClick={() => auth.logout().catch(() => {})}>Log out</button></>;
@@ -29,6 +29,14 @@ test('a 401 clears the Supabase session as well as the displayed user', async ()
   await screen.findByText('Alice');
   expired = true;
   await act(async () => { await api.me().catch(() => {}); });
+  await screen.findByText('Signed out');
+  await waitFor(async () => expect(await getToken()).toBe(null));
+});
+
+test('an inactive account is signed out locally and shown a clear explanation', async () => {
+  vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: 'account inactive', code: 'ACCOUNT_INACTIVE' }), { status: 403 }));
+  render(<AuthProvider><Identity /></AuthProvider>);
+  await screen.findByText('Your account is inactive. Please contact an administrator.');
   await screen.findByText('Signed out');
   await waitFor(async () => expect(await getToken()).toBe(null));
 });

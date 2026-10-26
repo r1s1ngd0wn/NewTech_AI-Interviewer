@@ -3,6 +3,11 @@ import { supabase, previewAuth } from './supabase.js';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 export const AUTH_EXPIRED_EVENT = "interviewai:auth-expired";
 
+function signalAuthEnded(code) {
+  setToken(null);
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, { detail: { code } }));
+}
+
 export async function getToken() {
   if (previewAuth) return localStorage.getItem(TOKEN_KEY);
   const { data, error } = supabase ? await supabase.auth.getSession() : { data: {} };
@@ -33,12 +38,10 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401 && auth) {
-      // Token expired or was revoked: drop it and let AuthContext send the user to /login.
-      setToken(null);
-      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
-    }
-    throw new Error(data.error || `request failed (${res.status})`);
+    if (auth && (res.status === 401 || data.code === 'ACCOUNT_INACTIVE')) signalAuthEnded(data.code);
+    const error = new Error(data.error || `request failed (${res.status})`);
+    error.code = data.code;
+    throw error;
   }
   return data;
 }
@@ -52,12 +55,11 @@ async function streamRequest(path, message, onEvent, signal) {
     signal,
   });
   if (!res.ok) {
-    if (res.status === 401) {
-      setToken(null);
-      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
-    }
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `request failed (${res.status})`);
+    if (res.status === 401 || data.code === 'ACCOUNT_INACTIVE') signalAuthEnded(data.code);
+    const error = new Error(data.error || `request failed (${res.status})`);
+    error.code = data.code;
+    throw error;
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -163,4 +165,9 @@ export const api = {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)));
     return request(`/admin/ai-logs?${qs.toString()}`);
   },
+  listAdminUsers: (params = {}) => { const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([,v])=>v!==''&&v!==null&&v!==undefined))); return request(`/admin/users?${qs}`); },
+  updateAdminUser: (id, patch) => request(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch }),
+  setAdminUserActive: (id, isActive) => request(`/admin/users/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: { isActive } }),
+  listAdminScenarios: (params = {}) => { const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([,v])=>v!==''&&v!==null&&v!==undefined))); return request(`/admin/scenarios?${qs}`); },
+  updateAdminScenario: (id, patch) => request(`/admin/scenarios/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch }),
 };

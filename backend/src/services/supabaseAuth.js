@@ -12,11 +12,17 @@ function publicProfile(row, email) {
 }
 async function authenticate(token, db = userClient(token)) {
   const { data, error } = await db.auth.getUser(token);
-  if (error || !data?.user) throw httpError(401, 'missing or invalid authorization token');
+  if (error || !data?.user) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[auth] Supabase getUser rejected token: status=${error?.status ?? 'unknown'} code=${error?.code ?? 'unknown'}`);
+    }
+    throw httpError(401, 'missing or invalid authorization token');
+  }
+  if (data.user.app_metadata?.is_active === false) throw httpError(401, 'account is inactive', 'ACCOUNT_INACTIVE');
   // Unlike offline JWT verification this also rejects tokens of signed-out sessions.
   const active = await db.rpc('is_session_active');
   if (active.error) throw httpError(503, 'could not verify authentication session');
-  if (!active.data) throw httpError(401, 'authentication session has ended');
+  if (!active.data) throw httpError(401, 'authentication session has ended', 'SESSION_REVOKED');
   const profile = await db.from('profiles').select('*').eq('id', data.user.id).single();
   if (profile.error || !profile.data) throw httpError(503, 'could not load user profile');
   return publicProfile(profile.data, data.user.email);

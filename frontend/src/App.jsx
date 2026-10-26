@@ -15,6 +15,8 @@ import AdminLayout from './pages/admin/AdminLayout.jsx';
 import AdminOverviewPage from './pages/admin/AdminOverviewPage.jsx';
 import AdminAiLogsPage from './pages/admin/AdminAiLogsPage.jsx';
 import AdminAiUsageLogPage from './pages/admin/AdminAiUsageLogPage.jsx';
+import AdminUsersPage from './pages/admin/AdminUsersPage.jsx';
+import AdminScenariosPage from './pages/admin/AdminScenariosPage.jsx';
 
 export default function App() {
   return (
@@ -32,6 +34,8 @@ export default function App() {
             <Route index element={<AdminOverviewPage />} />
             <Route path="ai-logs" element={<AdminAiLogsPage />} />
             <Route path="ai-usage" element={<AdminAiUsageLogPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="scenarios" element={<AdminScenariosPage />} />
           </Route>
           <Route
             path="/onboarding"

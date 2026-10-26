@@ -53,11 +53,15 @@ export function AuthProvider({ children }) {
           if (result?.user) setAuthError('');
           else if (hasCallback) setAuthError('Google sign-in could not be completed. Please try again.');
         }
-      } catch {
+      } catch (error) {
         if (!cancelled && isCurrent(current)) {
           setUser(null);
           lifecycle.current.userId = null;
-          setAuthError('Could not load your account. Please try signing in again.');
+          setAuthError(error.code === 'ACCOUNT_INACTIVE'
+            ? 'Your account is inactive. Please contact an administrator.'
+            : error.code === 'SESSION_REVOKED'
+              ? 'Your session has ended. Please sign in again.'
+              : 'Could not load your account. Please try signing in again.');
         }
       } finally { if (!cancelled && isCurrent(current)) setLoading(false); }
     }
@@ -83,12 +87,14 @@ export function AuthProvider({ children }) {
         setTimeout(() => { if (!cancelled) sync(); }, 0);
       }
     });
-    const expired = () => {
+    const expired = event => {
       lifecycle.current.epoch++;
       lifecycle.current.userId = null;
       lifecycle.current.logoutPending = false;
       lifecycle.current.pendingAuth = false;
       setUser(null); setLoading(false); setToken(null);
+      if (event.detail?.code === 'ACCOUNT_INACTIVE') setAuthError('Your account is inactive. Please contact an administrator.');
+      else if (event.detail?.code === 'SESSION_REVOKED') setAuthError('Your session has ended. Please sign in again.');
       if (!previewAuth && supabase) supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, expired);

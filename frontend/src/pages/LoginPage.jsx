@@ -75,7 +75,15 @@ export default function LoginPage() {
             </div>
           )}
 
-          {notice && <p role="status">{notice}</p>}
+          {notice && (
+            <div className="auth-success" role="status" aria-live="polite">
+              <span className="auth-success-icon" aria-hidden="true">✓</span>
+              <div>
+                <h3>Account created — check your email</h3>
+                <p>{notice}</p>
+              </div>
+            </div>
+          )}
           <button type="button" className="btn btn-secondary btn-block" disabled={submitting} onClick={async () => {
             setError(''); setSubmitting(true);
             try { await loginGoogle(); } catch (err) { setError(err.message); } finally { setSubmitting(false); }

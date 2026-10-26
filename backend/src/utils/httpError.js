@@ -1,4 +1,4 @@
-function httpError(status, message) {
-  return Object.assign(new Error(message), { status });
+function httpError(status, message, code) {
+  return Object.assign(new Error(message), { status, ...(code ? { code } : {}) });
 }
 module.exports = { httpError };

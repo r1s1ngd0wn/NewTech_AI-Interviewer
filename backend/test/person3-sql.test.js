@@ -18,8 +18,8 @@ test('all migrations execute; database enforces roles, ownership and atomic conf
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
     create schema auth; create schema storage;
-    create table auth.users(id uuid primary key, raw_user_meta_data jsonb default '{}');
-    create table auth.sessions(id uuid primary key, user_id uuid references auth.users(id));
+    create table auth.users(id uuid primary key, raw_user_meta_data jsonb default '{}', raw_app_meta_data jsonb default '{}');
+    create table auth.sessions(id uuid primary key, user_id uuid references auth.users(id), created_at timestamptz not null default now());
     create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
     create function auth.uid() returns uuid language sql stable as $$ select (auth.jwt()->>'sub')::uuid $$;
     grant usage on schema auth to authenticated,service_role;
@@ -82,6 +82,18 @@ test('all migrations execute; database enforces roles, ownership and atomic conf
     assert.deepEqual((await db.query('select id from practice_plans')).rows.map(row => row.id), [bobPlan.id]);
     assert.deepEqual((await db.query('select id from interviewai_sessions')).rows.map(row => row.id), ['owned-bob']);
   });
+  await db.query(`update auth.users set raw_app_meta_data=$2 where id=$1`, [ALICE, JSON.stringify({ is_active: false, sessions_valid_after: '2099-01-01T00:00:00.000Z' })]);
+  await asUser(ALICE, async () => {
+    assert.equal((await db.query('select public.is_session_active() as active')).rows[0].active, false);
+    assert.equal((await db.query('select * from practice_plans')).rows.length, 0);
+    assert.equal((await db.query('select * from interviewai_user_documents')).rows.length, 0);
+  });
+  await db.query(`update auth.users set raw_app_meta_data=$2 where id=$1`, [ALICE, JSON.stringify({ is_active: true, sessions_valid_after: '2099-01-01T00:00:00.000Z' })]);
+  await asUser(ALICE, async () => {
+    assert.equal((await db.query('select public.is_session_active() as active')).rows[0].active, false);
+    assert.equal((await db.query('select * from practice_plans')).rows.length, 0);
+  });
+  await db.query(`update auth.users set raw_app_meta_data='{}' where id=$1`, [ALICE]);
   const expired = await asUser(ALICE, async () => (await db.query('select propose_coach_action($1,$2) as action', ['create_practice_plan', JSON.stringify(payload)])).rows[0].action);
   await db.query("update pending_actions set expires_at=now()-interval '1 second' where id=$1", [expired.id]);
   await asUser(ALICE, async () => { await assert.rejects(db.query('select confirm_coach_action($1)', [expired.id]), /expired/); });

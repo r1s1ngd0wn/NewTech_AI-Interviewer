@@ -3,6 +3,7 @@ services:
     build: ./backend
     volumes:
       - ./AI_USAGE.md:/app/AI_USAGE.md:ro
+      - scenario_data:/app/data
     ports:
       - "4000:4000"
     environment:
@@ -11,6 +12,7 @@ services:
       - CORS_ORIGIN=http://localhost:5173
       - TRUST_PROXY=1
       - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL to the Supabase Postgres connection string}
+      - SCENARIO_DATA_FILE=/app/data/scenario-overrides.json
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
       - SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY:-}
@@ -36,3 +38,5 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+volumes:
+  scenario_data:

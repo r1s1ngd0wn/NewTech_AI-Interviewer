@@ -34,6 +34,8 @@ app.get('/api/health/ai', (req, res) => res.json(require('./services/aiHealth').
 app.use('/api/plans', require('./routes/plans'));
 app.use('/api/admin', requireAuth, requireRole('admin'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/admin/users', require('./routes/adminUsers'));
+app.use('/api/admin/scenarios', require('./routes/adminScenarios'));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 app.use("/api/auth/login", authLimiter);
@@ -66,7 +68,7 @@ app.use((err, req, res, next) => {
     return res.status(status).json({ error: "internal server error" });
   }
   const message = err.type === "entity.parse.failed" ? "request body is not valid JSON" : err.message;
-  res.status(status).json({ error: message });
+  res.status(status).json({ error: message, ...(err.code ? { code: err.code } : {}) });
 });
 
 async function start() {

@@ -1,5 +1,6 @@
 const { randomUUID } = require('node:crypto');
 const { getScenario } = require('./scenarioService');
+const scenarioService = require('./scenarioService');
 const { httpError } = require('../utils/httpError');
 
 function object(value, allowed) {
@@ -51,6 +52,11 @@ function dbError(error) {
   const [status, message] = messages[error.code] || [400, 'could not save plan or action'];
   throw httpError(status, message);
 }
+function assertNewScenariosActive(items) {
+  for (const item of items) if (item.scenarioId && !scenarioService.isActive(item.scenarioId)) {
+    throw httpError(409, 'inactive scenarios cannot be added to a plan', 'SCENARIO_INACTIVE');
+  }
+}
 function createPlanService(db) {
   return {
     async list(userId) {
@@ -58,7 +64,8 @@ function createPlanService(db) {
       dbError(r.error); return r.data.map(fromPlan);
     },
     async create(userId, body) {
-      const r = await db.rpc('create_practice_plan', { payload: validatePlan(body) });
+      const payload = validatePlan(body); assertNewScenariosActive(payload.items);
+      const r = await db.rpc('create_practice_plan', { payload });
       dbError(r.error); return fromPlan(r.data);
     },
     async update(userId, id, patch) {
@@ -71,6 +78,7 @@ function createPlanService(db) {
     },
     async addItem(userId, planId, item) {
       const value = validateItem(item);
+      assertNewScenariosActive([value]);
       const r = await db.from('practice_plan_items').insert({ plan_id: planId, user_id: userId,
         scenario_id: value.scenarioId, scheduled_date: value.scheduledDate, status: value.status }).select('*').single();
       dbError(r.error); return fromItem(r.data);
@@ -82,6 +90,11 @@ function createPlanService(db) {
     async updateItem(userId, id, patch) {
       const fields = { scenarioId: 'scenario_id', scheduledDate: 'scheduled_date', status: 'status' };
       const changes = Object.fromEntries(Object.entries(validateItem(patch, true)).map(([k, v]) => [fields[k], v]));
+      if (changes.scenario_id) {
+        const current = await db.from('practice_plan_items').select('scenario_id').eq('id',id).eq('user_id',userId).maybeSingle();
+        dbError(current.error); if(!current.data) throw httpError(404,'plan item not found');
+        if(changes.scenario_id!==current.data.scenario_id) assertNewScenariosActive([{ scenarioId: changes.scenario_id }]);
+      }
       const r = await db.from('practice_plan_items').update(changes).eq('id', id).eq('user_id', userId).select('*').maybeSingle();
       dbError(r.error); if (!r.data) throw httpError(404, 'plan item not found'); return fromItem(r.data);
     },
@@ -108,16 +121,16 @@ function createMemoryPlanService() {
   return {
     async list(user) { return structuredClone([...rows.values()].filter(p => p.userId === user)); },
     async create(userId, body) {
-      const data = validatePlan(body); const id = randomUUID();
+      const data = validatePlan(body); assertNewScenariosActive(data.items); const id = randomUUID();
       const plan = { id, userId, title: data.title, createdAt: new Date().toISOString(),
         items: data.items.map(item => ({ ...item, id: randomUUID(), planId: id })) };
       rows.set(id, plan); return structuredClone(plan);
     },
     async update(user, id, patch) { const p = owned(user, id); Object.assign(p, validatePlan(patch, true)); return structuredClone(p); },
     async delete(user, id) { owned(user, id); rows.delete(id); },
-    async addItem(user, id, value) { const plan = owned(user, id); const item = { ...validateItem(value), id: randomUUID(), planId: id }; plan.items.push(item); return structuredClone(item); },
+    async addItem(user, id, value) { const plan = owned(user, id); const valid=validateItem(value); assertNewScenariosActive([valid]); const item = { ...valid, id: randomUUID(), planId: id }; plan.items.push(item); return structuredClone(item); },
     async getItem(user, id) { return structuredClone(ownedItem(user, id).item); },
-    async updateItem(user, id, patch) { const { item } = ownedItem(user, id); Object.assign(item, validateItem(patch, true)); return structuredClone(item); },
+    async updateItem(user, id, patch) { const { item } = ownedItem(user, id); const changes=validateItem(patch, true); if(changes.scenarioId&&changes.scenarioId!==item.scenarioId) assertNewScenariosActive([changes]); Object.assign(item, changes); return structuredClone(item); },
     async deleteItem(user, id) { const { plan } = ownedItem(user, id); plan.items = plan.items.filter(i => i.id !== id); },
   };
 }

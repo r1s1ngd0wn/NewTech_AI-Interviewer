@@ -354,6 +354,39 @@ p {
   flex: none;
   margin-top: 2px;
 }
+.auth-success {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  margin: 0 0 var(--spacing-24);
+  padding: var(--spacing-16);
+  border: 1px solid #a7d8b0;
+  border-left: 4px solid var(--color-moss);
+  border-radius: var(--radius-card);
+  background: #eff8f0;
+  color: #204c28;
+}
+.auth-success-icon {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: #d6edda;
+  color: #204c28;
+  font-weight: 700;
+}
+.auth-success h3 {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.4;
+}
+.auth-success p {
+  margin: var(--spacing-8) 0 0;
+  color: #315c38;
+  font-size: var(--text-body-sm);
+}
 .form-card {
   max-width: 26rem;
 }

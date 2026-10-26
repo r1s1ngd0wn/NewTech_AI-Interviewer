@@ -19,6 +19,9 @@ async function requireAuth(req, res, next) {
   }
 
   if (!user) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[auth] ${req.method} ${req.path} rejected: ${token ? 'token was present but not accepted' : 'Bearer token was missing'}`);
+    }
     return res.status(401).json({ error: "missing or invalid authorization token" });
   }
   req.user = user;

@@ -154,8 +154,6 @@ Written by Long (copied unchanged from his branch):
 
 ## Đức
 
-_(to be filled in by Đức: agent tools, authentication, logging, fallback)_
-
 # Person 3 implementation assistance — 2026-10-24
 
 Codex assisted with Supabase auth/RLS migrations, bounded Gemini tools and atomic confirmation, practice plans API/UI, request telemetry/health/fallback, tests and deployment setup. Requirements came from the team's PLAN (1).md. Existing Long_RAG RAG/SSE/data contracts were preserved; scope and unresolved cloud integration are documented in docs/DUC_SETUP.md and docs/DUC_TRACEABILITY.md.

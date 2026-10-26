@@ -24,17 +24,19 @@ async function startSession(userId, scenarioId) {
   const scenario = scenarioService.getScenario(scenarioId);
   if (!scenario) throw httpError(404, "scenario not found");
 
-  // Reopening a scenario before answering anything (page refresh, React StrictMode's
-  // double effect in dev) reuses the untouched session instead of orphaning a new one.
-  const untouched = (await listSessionsForUser(userId)).find(
-    (s) => s.status === "in_progress" && s.scenarioId === scenarioId && s.turns.length === 0
+  // Reuse untouched sessions in normal flow, and let an in-progress session for a newly
+  // inactive scenario resume so deactivation does not interrupt work already underway.
+  const existing = (await listSessionsForUser(userId)).find(
+    (s) => s.status === "in_progress" && s.scenarioId === scenarioId
   );
-  if (untouched) {
+  if (existing && (existing.turns.length === 0 || !scenarioService.isActive(scenarioId))) {
     return {
-      session: toPublicSession(untouched),
-      question: aiSimulator.firstQuestion(effectiveScenario(untouched, scenario)),
+      session: toPublicSession(existing),
+      question: aiSimulator.nextTurn(effectiveScenario(existing, scenario), existing),
     };
   }
+
+  if (!scenarioService.isActive(scenarioId)) throw httpError(409, "scenario is inactive and cannot start a new interview", "SCENARIO_INACTIVE");
 
   const session = {
     id: newId("sess"),

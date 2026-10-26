@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 
-function ItemEditor({ item, scenarios, onSave, onCancel }) {
+function ItemEditor({ item, scenarios, onSave, onCancel, currentScenario }) {
   const [scenarioId, setScenario] = useState(item?.scenarioId || scenarios[0]?.id || '');
   const [scheduledDate, setDate] = useState(item?.scheduledDate || '');
   const [status, setStatus] = useState(item?.status || 'scheduled');
@@ -12,14 +12,14 @@ function ItemEditor({ item, scenarios, onSave, onCancel }) {
     e.preventDefault(); setBusy(true); setError('');
     try { await onSave({ scenarioId, scheduledDate, status }); } catch (err) { setError(err.message); } finally { setBusy(false); }
   }}>
-    <label>Scenario<select required value={scenarioId} onChange={e => setScenario(e.target.value)}>{scenarios.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
+    <label>Scenario<select required value={scenarioId} onChange={e => setScenario(e.target.value)}>{currentScenario && !scenarios.some(s=>s.id===currentScenario.id) && <option value={currentScenario.id}>{currentScenario.title} (Inactive · existing item)</option>}{scenarios.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
     <label>Date<input required type="date" value={scheduledDate} onChange={e => setDate(e.target.value)} /></label>
     <label>Status<select value={status} onChange={e => setStatus(e.target.value)}><option value="scheduled">Scheduled</option><option value="done">Done</option><option value="skipped">Skipped</option></select></label>
     <div className="plan-actions"><button disabled={busy} className="btn btn-primary btn-sm">Save session</button><button type="button" className="btn btn-secondary btn-sm" onClick={onCancel}>Cancel</button></div>
     {error && <p role="alert" className="form-error">{error}</p>}
   </form>;
 }
-function PlanCard({ plan, scenarios, refresh }) {
+function PlanCard({ plan, scenarios, scenarioById, refresh }) {
   const [title, setTitle] = useState(plan.title);
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
@@ -37,14 +37,14 @@ function PlanCard({ plan, scenarios, refresh }) {
     </form>
     {deleting && <div className="action-card" role="alert"><p>Delete this plan and all its sessions?</p><button className="btn btn-primary btn-sm" disabled={busy} onClick={() => mutate(() => api.deletePlan(plan.id))}>Delete</button>{' '}<button className="btn btn-secondary btn-sm" onClick={() => setDeleting(false)}>Keep plan</button></div>}
     <ul className="plan-items">{[...plan.items].sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)).map(item => <li key={item.id}>
-      <div><strong>{scenarios.find(s => s.id === item.scenarioId)?.title || item.scenarioId}</strong><p>{item.scheduledDate} · {item.status}</p><details><summary>Item ID for coach updates</summary><code>{item.id}</code></details></div>
+      <div><strong>{scenarioById[item.scenarioId]?.title || scenarios.find(s => s.id === item.scenarioId)?.title || item.scenarioId}</strong>{scenarioById[item.scenarioId]?.isActive===false&&<p><span className="admin-status status-error">Inactive scenario</span> Existing plan history is retained.</p>}<p>{item.scheduledDate} · {item.status}</p><details><summary>Item ID for coach updates</summary><code>{item.id}</code></details></div>
       <div className="plan-actions">
-        <Link className="btn btn-primary btn-sm" to={`/interview/${item.scenarioId}`}>Start practice</Link>
+        {scenarioById[item.scenarioId]?.isActive===false?<button className="btn btn-primary btn-sm" disabled title="This scenario is inactive">Start practice unavailable</button>:<Link className="btn btn-primary btn-sm" to={`/interview/${item.scenarioId}`}>Start practice</Link>}
         <button disabled={busy} className="btn btn-secondary btn-sm" onClick={() => mutate(() => api.updatePlanItem(item.id, { status: item.status === 'done' ? 'scheduled' : 'done' }))}>{item.status === 'done' ? 'Reopen' : 'Mark done'}</button>
         <button disabled={busy} className="btn btn-secondary btn-sm" onClick={() => setEditing(item)}>Edit</button>
         <button disabled={busy} className="btn btn-ghost" onClick={() => mutate(() => api.deletePlanItem(item.id))}>Remove</button>
       </div>
-      {editing?.id === item.id && <ItemEditor key={item.id} item={item} scenarios={scenarios} onCancel={() => setEditing(null)} onSave={async data => { await api.updatePlanItem(item.id, data); setEditing(null); await refresh(); }} />}
+      {editing?.id === item.id && <ItemEditor key={item.id} item={item} scenarios={scenarios} currentScenario={scenarioById[item.scenarioId]} onCancel={() => setEditing(null)} onSave={async data => { await api.updatePlanItem(item.id, data); setEditing(null); await refresh(); }} />}
     </li>)}</ul>
     {editing === 'new' ? <ItemEditor scenarios={scenarios} onCancel={() => setEditing(null)} onSave={async data => { await api.addPlanItem(plan.id, data); setEditing(null); await refresh(); }} />
       : <button className="btn btn-secondary btn-sm" onClick={() => setEditing('new')}>Add session</button>}
@@ -54,6 +54,7 @@ function PlanCard({ plan, scenarios, refresh }) {
 export default function PlanPage() {
   const [plans, setPlans] = useState([]);
   const [scenarios, setScenarios] = useState([]);
+  const [scenarioById, setScenarioById] = useState({});
   const [title, setTitle] = useState('My practice plan');
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,7 @@ export default function PlanPage() {
   async function refresh() { const { plans } = await api.listPlans(); setPlans(plans); }
   useEffect(() => {
     let active = true;
-    Promise.all([api.listPlans(), api.listScenarios()]).then(([p, s]) => { if (active) { setPlans(p.plans); setScenarios(s.scenarios); } })
+    Promise.all([api.listPlans(), api.listScenarios()]).then(async ([p, s]) => { if (active) { setPlans(p.plans); setScenarios(s.scenarios); const ids=[...new Set(p.plans.flatMap(plan=>plan.items.map(item=>item.scenarioId)))];const details=await Promise.all(ids.map(async id=>{try{return (await api.getScenario(id)).scenario}catch{return null}}));if(active)setScenarioById(Object.fromEntries(details.filter(Boolean).map(x=>[x.id,x]))); } })
       .catch(err => { if (active) setError(err.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -73,7 +74,7 @@ export default function PlanPage() {
       {creating && <section className="plan-card"><label>Plan title<input maxLength={120} value={title} onChange={e => setTitle(e.target.value)} /></label>
         <ItemEditor scenarios={scenarios} onCancel={() => setCreating(false)} onSave={async item => { await api.createPlan({ title, items: [item] }); setCreating(false); await refresh(); }} /></section>}
       {!plans.length && !creating && <p className="empty-state">No plans yet. Create your first practice session.</p>}
-      {plans.map(plan => <PlanCard key={plan.id} plan={plan} scenarios={scenarios} refresh={refresh} />)}
+      {plans.map(plan => <PlanCard key={plan.id} plan={plan} scenarios={scenarios} scenarioById={scenarioById} refresh={refresh} />)}
     </>}
   </div>;
 }
