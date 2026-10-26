@@ -9,7 +9,7 @@ test('confirmation remains disabled in flight and displays saved only after serv
   let resolve;
   vi.stubGlobal('fetch', () => new Promise(done => { resolve = done; }));
   render(<ConfirmActionCard action={proposal} />);
-  const button = screen.getByRole('button', { name: 'Xác nhận' });
+  const button = screen.getByRole('button', { name: 'Confirm' });
   fireEvent.click(button);
   expect(button.disabled).toBe(true);
   expect(screen.queryByText(/Saved\. View/)).toBe(null);
@@ -17,10 +17,10 @@ test('confirmation remains disabled in flight and displays saved only after serv
   await vi.waitFor(() => expect(typeof resolve).toBe('function'));
   resolve(new Response(JSON.stringify({ status: 'confirmed' })));
   await screen.findByText('Saved. View it on the Plans page.');
-  expect(screen.queryByRole('button', { name: 'Xác nhận' })).toBe(null);
+  expect(screen.queryByRole('button', { name: 'Confirm' })).toBe(null);
 });
 test('expired proposals expose no confirm button', () => {
   render(<ConfirmActionCard action={{ ...proposal, expires_at: '2000-01-01T00:00:00Z' }} />);
-  expect(screen.queryByRole('button', { name: 'Xác nhận' })).toBe(null);
+  expect(screen.queryByRole('button', { name: 'Confirm' })).toBe(null);
   expect(screen.getByText(/Expired/)).toBeTruthy();
 });

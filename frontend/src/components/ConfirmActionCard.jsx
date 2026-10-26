@@ -23,8 +23,8 @@ export default function ConfirmActionCard({ action }) {
       : <><p>Item: {payload.id}</p><ul>{Object.entries(payload.change || {}).map(([field, value]) => <li key={field}>{field}: {value}</li>)}</ul></>}
     <p className="chat-msg-note">{state === 'confirmed' ? 'Saved. View it on the Plans page.' : state === 'cancelled' ? 'Cancelled. No plan changes were saved.' : expired ? 'Expired. Ask the coach for a new proposal.' : `Not saved yet. Expires at ${new Date(action.expires_at).toLocaleTimeString()}.`}</p>
     {state === 'pending' && !expired && <div className="plan-actions">
-      <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => decide(true)}>Xác nhận</button>
-      <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => decide(false)}>Huỷ</button>
+      <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => decide(true)}>Confirm</button>
+      <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => decide(false)}>Cancel</button>
     </div>}
     {error && <p className="form-error" role="alert">{error}</p>}
   </section>;
