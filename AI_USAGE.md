@@ -116,6 +116,29 @@ prompt files, history, admin usage dashboard.
   answer submitted a moment earlier. Caught while designing the merge; replaced with a single-field
   `jsonb_set` update, with a test that two answers survive a review landing between them.
 
+
+### 7. Local model first, Gemini as the fallback (`llmProviders.js`, `localToolClient.js`, `llmService.js`)
+
+- **Key prompt (paraphrased):** "if I want to run local, do we have to rewrite some of the code to use
+  gemma as main llm with gemini as fallback?", then "yeah please do".
+- **Generated:** the ordered provider list (`LLM_PROVIDER=local,gemini`), the fallback rules in
+  `llmService`, the OpenAI-format tool-calling client for LM Studio, health/pricing/eval changes,
+  `test/local-first.test.js` (19 tests), ADR 0003.
+- **Checked / changed by me:** I first ran the Coach against LM Studio on unchanged code and saw every
+  reply fall back (the agent was Gemini-only and the local provider was memory-mode only), then ran the
+  same questions after the change: weak areas, session list and a plan proposal all worked on Gemma, and
+  the live agent eval passed 6/6 (`backend/eval/results/*duc-live.json`, model `gemma-4`). The critique
+  eval passed 24/24 runs on the local-first setup. To check the new tests can fail, I broke the fallback
+  on purpose twice and confirmed 5 and 1 tests went red.
+- **AI got it wrong, case 11:** I told you earlier that the Gemma tests covered "the app". They covered
+  only the critique and plain chat; the Coach and agent had never run on Gemma, and with Supabase the
+  local provider was switched off. Found by starting the server with `LLM_PROVIDER=local` and reading the
+  fallback text in the Coach replies, not by a test.
+- **AI got it wrong, case 12:** my first `generateWithTools` retried on Gemini even after Gemma had
+  already streamed text to the user, which would have shown two different answers glued together. Found
+  by rereading the draft before running it; replaced with a `noFallback` flag set once text has been
+  shown, plus a test that fails if the flag is removed.
+
 ---
 
 ## Long

@@ -5,7 +5,8 @@
   "source": "https://ai.google.dev/gemini-api/docs/pricing",
   "models": {
     "gemini-3.1-flash-lite": { "input": 0.25, "output": 1.5 },
-    "gemini-3.5-flash-lite": { "input": 0.3, "output": 2.5 }
+    "gemini-3.5-flash-lite": { "input": 0.3, "output": 2.5 },
+    "gemma-4": { "input": 0, "output": 0 }
   },
-  "note": "Standard paid-tier text list-price estimates. Alias/model versions without a verified exact rate remain null. These are estimates, not billing invoices."
+  "note": "Standard paid-tier text list-price estimates. Alias/model versions without a verified exact rate remain null. These are estimates, not billing invoices. gemma-4 runs locally through LM Studio: no per-token fee, so its logged cost is 0; electricity and hardware are not included."
 }

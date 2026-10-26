@@ -40,7 +40,7 @@ test('structured callers own retries while agent validation can retry, with one 
   assert.equal(requests.length, 5);
 });
 
-test('structured local output remains available only in a nonproduction memory preview', async t => {
+test('structured local output is available in every environment and is off only when the provider is none', async t => {
   const env = { ...process.env };
   t.after(() => { process.env = env; });
   process.env.STORE_BACKEND = 'memory';
@@ -54,9 +54,12 @@ test('structured local output remains available only in a nonproduction memory p
     return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '<think>private</think>```json\n{"local":true}\n```' } }] }) };
   });
   assert.deepEqual(await llm.generateJson({ system: 's', messages: [{ role: 'user', text: 'review' }] }), { local: true });
+  process.env.STORE_BACKEND = 'postgres';
   process.env.NODE_ENV = 'production';
+  assert.deepEqual(await llm.generateJson({ system: 's', messages: [{ role: 'user', text: 'review' }] }), { local: true });
+  process.env.LLM_PROVIDER = 'none';
   await assert.rejects(llm.generateJson({ system: 's', messages: [] }), { code: 'not_configured' });
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
 });
 
 test('structured Gemini preserves thinking settings and logs the corrective attempt separately', async t => {

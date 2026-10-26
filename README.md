@@ -154,7 +154,7 @@ src/prompts/archive/critique.v1.md --no-grounding` (reproduce the behaviour befo
 | `GEMINI_THINKING_BUDGET` | `0` (default) switches reasoning off for speed; `default` leaves it to the model |
 | `LLM_REACTIONS` | `off` stops the model writing interviewer reactions |
 | `LLM_CRITIQUE` | `off` stops the model writing the per-answer review on the feedback page (a basic review is shown instead) |
-| `LLM_PROVIDER` | `local` uses a local server, `none` forces scripted replies; unset means Gemini if a key exists |
+| `LLM_PROVIDER` | Providers in the order they are tried: `local,gemini` (Gemma first, Gemini if it fails), `local`, `gemini`, or `none` for scripted replies. Unset means Gemini if a key exists |
 | `LOCAL_LLM_URL` / `LOCAL_LLM_MODEL` / `LOCAL_LLM_API_KEY` | Local server base URL (default LM Studio `http://localhost:1234/v1`), model id, optional key |
 | `LLM_REACTION_TIMEOUT_MS` | How long an interview waits for a model-written reaction (8000 Gemini, 20000 local) |
 
@@ -215,17 +215,21 @@ Without a key everything keeps using the scripted replies. With one:
 
 ## Optional: a local model (LM Studio, Ollama, llama.cpp)
 
-The same two features can run on a model on your own computer, with nothing sent to Google. In LM
-Studio, load a model, open the Developer tab and switch the server to Running. Then in
-`backend/.env`:
+Every AI feature (interviewer reactions, the per-answer review, the debrief chat, and the Coach with
+its tools) can run on a model on your own computer. In LM Studio, load a model, open the Developer
+tab and switch the server to Running. Then in `backend/.env`:
 
 ```
-LLM_PROVIDER=local
+LLM_PROVIDER=local,gemini
 LOCAL_LLM_URL=http://localhost:1234/v1
 LOCAL_LLM_MODEL=gemma-4
 ```
 
-`LLM_PROVIDER=local` takes priority over a Gemini key. `LOCAL_LLM_MODEL` can be left empty to use
+`local,gemini` tries Gemma first and calls Gemini only when the local call fails (server stopped,
+timeout, invalid JSON); with `LLM_PROVIDER=local` there is no cloud fallback and nothing leaves your
+computer except embeddings. Without a `GEMINI_API_KEY` the Gemini entry is ignored. A reply that has
+already started streaming is never restarted on another provider. The chain works with the Supabase
+backend, not only in memory preview mode. Embeddings stay on Gemini (see ADR 0003). `LOCAL_LLM_MODEL` can be left empty to use
 the first chat model the server lists. Any server with an OpenAI-style `/v1/chat/completions`
 endpoint works (Ollama is `http://localhost:11434/v1`). Local calls wait up to 45 seconds (20 for
 interviewer reactions) because a model may still be loading. Tested with Gemma 4 E4B (IQ4_NL) in LM

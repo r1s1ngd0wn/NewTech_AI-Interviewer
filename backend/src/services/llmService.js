@@ -11,6 +11,7 @@
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const { trackAiRequest, createRequestLog } = require('./aiTelemetry');
+const { providers } = require('./llmProviders');
 // "gemini-flash-latest" is Google's alias for the current flash model, so the default does not
 // break when a specific version is retired (gemini-2.5-flash already was for new keys).
 const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
@@ -45,11 +46,26 @@ function thinkingBudget() {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+// The first usable provider answers; the rest are tried, in order, when it fails
+// (LLM_PROVIDER=local,gemini runs Gemma first and Gemini as the fallback).
 function provider() {
-  const explicit = env("LLM_PROVIDER").toLowerCase();
-  if (explicit === "none") return null;
-  if (explicit === "local") return process.env.STORE_BACKEND === 'memory' && process.env.NODE_ENV !== 'production' ? "local" : null;
-  return env("GEMINI_API_KEY") ? "gemini" : null;
+  return providers()[0] || null;
+}
+
+// Runs attempt(provider) for each usable provider until one succeeds. A cancelled request is
+// never retried elsewhere, and a failure on the last provider is the one the caller sees.
+async function withFallback(attempt) {
+  const chain = providers();
+  if (!chain.length) throw new LlmError("the LLM is not configured or is disabled", { code: "not_configured" });
+  let failure;
+  for (let i = 0; i < chain.length; i++) {
+    try { return await attempt(chain[i], i === chain.length - 1); }
+    catch (error) {
+      failure = error;
+      if (error.name === "AbortError" || error.noFallback || i === chain.length - 1) throw error;
+    }
+  }
+  throw failure;
 }
 
 function isEnabled() {
@@ -67,14 +83,17 @@ function localConfig() {
 }
 
 function status() {
-  const p = provider();
+  return statusFor(provider());
+}
+
+function statusFor(p) {
   if (p === "gemini") return { enabled: true, provider: "gemini", model: env("GEMINI_MODEL") || DEFAULT_GEMINI_MODEL, local: false };
   if (p === "local") return { enabled: true, provider: "local", model: localConfig().model || "local model", local: true };
   return { enabled: false };
 }
 
-function defaultTimeoutMs() {
-  return Number(env("LLM_TIMEOUT_MS")) || (provider() === "local" ? LOCAL_TIMEOUT_MS : GEMINI_TIMEOUT_MS);
+function defaultTimeoutMs(active = provider()) {
+  return Number(env("LLM_TIMEOUT_MS")) || (active === "local" ? LOCAL_TIMEOUT_MS : GEMINI_TIMEOUT_MS);
 }
 
 // How long the interview may wait for the model before falling back to the scripted line.
@@ -259,11 +278,11 @@ async function generateLocal({ system, messages, temperature, maxOutputTokens, t
 // ---- public ----------------------------------------------------------------------------
 
 async function generate({ system, messages, temperature = 0.4, maxOutputTokens = 1024, timeoutMs, promptVersion, meta }) {
-  const active = provider();
-  if (!active) throw new LlmError("the LLM is not configured");
-  const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(),
-    meta: invocationMeta(meta, promptVersion) };
-  const text = await (active === "local" ? generateLocal(args) : generateGemini(args));
+  const text = await withFallback((active) => {
+    const args = { system, messages, temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(active),
+      meta: invocationMeta(meta, promptVersion) };
+    return active === "local" ? generateLocal(args) : generateGemini(args);
+  });
   // The app never shows em/en dashes; models like to write them.
   return text.replace(/\s*[–—]\s*/g, (m) => (/\s/.test(m) ? " - " : "-"));
 }
@@ -325,18 +344,32 @@ function reasoningFilter() {
   };
 }
 
-async function* generateStream({ system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, promptVersion, meta }) {
+// A reply that has started streaming cannot be taken back, so the next provider is only tried
+// when the failed one had not produced any text yet.
+async function* generateStream(options) {
+  const chain = providers();
+  if (!chain.length) throw new LlmError("the LLM is not configured");
+  for (let i = 0; i < chain.length; i++) {
+    let started = false;
+    try {
+      for await (const piece of generateStreamWith(chain[i], options)) { started = true; yield piece; }
+      return;
+    } catch (error) {
+      if (started || error.name === "AbortError" || options.signal?.aborted || i === chain.length - 1) throw error;
+    }
+  }
+}
+
+async function* generateStreamWith(active, { system, messages, temperature = 0.2, maxOutputTokens = 1024, signal, promptVersion, meta }) {
   meta = invocationMeta(meta, promptVersion);
-  const active = provider();
-  if (!active) throw new LlmError("the LLM is not configured");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), defaultTimeoutMs());
+  const timeout = setTimeout(() => controller.abort(), defaultTimeoutMs(active));
   const abort = () => controller.abort();
   if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
   const turns = normalizeTurns(messages);
   const filter = reasoningFilter();
   const budget = active === "gemini" ? thinkingBudget() : null;
-  let log = createRequestLog({ ...meta, model: status().model, provider: active, operation: 'chat_stream', signal });
+  let log = createRequestLog({ ...meta, model: statusFor(active).model, provider: active, operation: 'chat_stream', signal });
   let failure;
   let visibleText = '';
   try {
@@ -368,7 +401,7 @@ async function* generateStream({ system, messages, temperature = 0.2, maxOutputT
       const detail = await response.json().catch(() => ({}));
       if (/think/i.test(detail?.error?.message || "")) {
         await log.finish(new LlmError('thinking configuration rejected', { status: 400 }));
-        log = createRequestLog({ ...meta, model: status().model, provider: active, operation: 'chat_stream', signal });
+        log = createRequestLog({ ...meta, model: statusFor(active).model, provider: active, operation: 'chat_stream', signal });
         delete body.generationConfig.thinkingConfig;
         response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
       }
@@ -424,11 +457,38 @@ function invocationMeta(meta, promptVersion) {
   return { ...meta, ...(promptVersion !== undefined ? { prompt_version: meta?.prompt_version ?? promptVersion } : {}), legacyInvocation: {} };
 }
 
-const generateWithTools = options => require('./geminiClient').requestJson(options);
-async function generateJson({ system, messages = [], contents, responseSchema, validate, schema, fallback,
+// Same rule as streaming: once text has reached the caller, a failure is not retried elsewhere.
+function generateWithTools(options) {
+  let started = false;
+  const onToken = options.onToken && ((text) => { started = true; options.onToken(text); });
+  return withFallback(async (active) => {
+    try {
+      if (active === "local") {
+        const cfg = localConfig();
+        return await require('./localToolClient').requestJson({ ...options, onToken, timeoutMs: options.timeoutMs || defaultTimeoutMs("local"),
+          model: cfg.model || undefined, config: { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.model, detectModel: () => detectLocalModel(cfg), filter: true } });
+      }
+      return await require('./geminiClient').requestJson({ ...options, onToken });
+    } catch (error) {
+      if (started) error.noFallback = true;
+      throw error;
+    }
+  });
+}
+
+// The scripted fallback value is only used once every provider has failed.
+async function generateJson(options) {
+  const { fallback } = options;
+  const chain = providers();
+  if (!chain.length) {
+    if (fallback !== undefined && !options.signal?.aborted) return typeof fallback === 'function' ? fallback() : fallback;
+    throw new LlmError("the LLM is not configured", { code: "not_configured" });
+  }
+  return withFallback((active, last) => generateJsonWith(active, last ? options : { ...options, fallback: undefined }));
+}
+
+async function generateJsonWith(active, { system, messages = [], contents, responseSchema, validate, schema, fallback,
   signal, model, meta = {}, promptVersion, temperature = 0.2, maxOutputTokens = 1024, timeoutMs, retry = true }) {
-  const active = provider();
-  if (!active) throw new LlmError("the LLM is not configured", { code: "not_configured" });
   const turns = contents ? [...contents] : normalizeTurns(messages).map(t => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.text }] }));
   // Critique callers own retries; agent convenience callers can delegate one corrective retry.
   const maxAttempts = retry && (validate || schema || fallback !== undefined) ? 2 : 1;
@@ -442,7 +502,7 @@ async function generateJson({ system, messages = [], contents, responseSchema, v
     try {
       if (active === 'local') {
         return await generateLocal({ system, messages: turns.map(t => ({ role: t.role === 'model' ? 'assistant' : 'user', text: (t.parts || []).map(p => p.text || '').join('') })),
-          temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(), meta: requestMeta, operation: 'json', validateOutput, signal });
+          temperature, maxOutputTokens, timeoutMs: timeoutMs || defaultTimeoutMs(active), meta: requestMeta, operation: 'json', validateOutput, signal });
       }
       const result = await require('./geminiClient').requestJson({ system, contents: turns, responseSchema, signal, model,
         temperature, maxOutputTokens, timeoutMs, thinkingBudget: thinkingBudget(), meta: requestMeta, validateOutput });

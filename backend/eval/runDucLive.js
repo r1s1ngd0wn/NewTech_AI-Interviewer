@@ -1,5 +1,6 @@
 require('dotenv').config();
-// Isolated synthetic application data; only the model requests use the cloud.
+// Isolated synthetic application data; only the model requests leave the process (cloud Gemini, or
+// the local server when LLM_PROVIDER lists local).
 process.env.STORE_BACKEND = 'memory';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -13,8 +14,10 @@ const { CHECKER_VERSION, evaluateDucCase } = require('./ducChecks');
 const { createMemoryPlanService } = require('../src/services/planService');
 const { createMemoryActionService } = require('../src/services/actionService');
 const pricing = require('../src/config/pricing.json');
+const { providers } = require('../src/services/llmProviders');
 async function main() {
-  if (!process.env.GEMINI_API_KEY || process.env.LLM_PROVIDER === 'none') throw new Error('Configure GEMINI_API_KEY before live eval. This command sends paid cloud requests.');
+  if (!providers().length) throw new Error('Configure LLM_PROVIDER=local (LM Studio running) or GEMINI_API_KEY before live eval. Gemini requests are billed by the provider.');
+  const modelsUsed = new Set();
   const { user } = await auth.register({ email: 'synthetic-eval@interviewai.invalid', password: 'synthetic-only', name: 'Synthetic Eval' });
   const { session } = await sessions.startSession(user.id, 'scn_swe_junior_behavioral');
   for (let i = 0; i < 4; i++) await sessions.submitAnswer(user.id, session.id, 'I built a project with my team. We improved API performance and measured the results.');
@@ -58,7 +61,8 @@ async function main() {
           transportErrors.push({ code: error.code || error.name, provider_status: error.upstreamStatus || null });
           throw error;
         }
-        const input = r.usage?.promptTokenCount; const output = r.usage?.candidatesTokenCount;
+        modelsUsed.add(r.model);
+        const input = r.usage?.promptTokenCount ?? r.usage?.prompt_tokens; const output = r.usage?.candidatesTokenCount ?? r.usage?.completion_tokens;
         if (!Number.isFinite(input) || !Number.isFinite(output)) known = false;
         else {
           tokensIn += input; tokensOut += output + (r.usage.thoughtsTokenCount || 0);
@@ -75,7 +79,7 @@ async function main() {
         tokens_in: known ? tokensIn : null, tokens_out: known ? tokensOut : null, cost_usd: known && knownCost ? cost : null });
     } catch { results.push({ id: c.id, pass: false, error: 'live_request_failed', latency_ms: Math.round(performance.now() - start) }); }
   }
-  const report = { created_at: new Date().toISOString(), mode: 'live-model-synthetic-data', checker_version: CHECKER_VERSION, prompt_version: prompt.version, model: process.env.GEMINI_MODEL || 'gemini-flash-latest',
+  const report = { created_at: new Date().toISOString(), mode: 'live-model-synthetic-data', checker_version: CHECKER_VERSION, prompt_version: prompt.version, provider_order: providers(), model: [...modelsUsed].join(', ') || null,
     pass_rate: results.filter(r => r.pass).length / results.length, results };
   const dir = path.join(__dirname, 'results'); fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}-duc-live.json`);
